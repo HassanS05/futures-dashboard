@@ -69,7 +69,7 @@ fig.update_layout(
 )
 
 st.plotly_chart(fig)
-age
+
 
 # Affichage du logo en haut
 
