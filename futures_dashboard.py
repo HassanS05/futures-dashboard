@@ -2,7 +2,7 @@ import streamlit as st
 from PIL import Image
 
 # Affichage du logo en haut
-logo_url = "https://upload.wikimedia.org/wikipedia/commons/3/3f/Trading_icon.png"
+st.image("logo.png", width=80)
 
 st.image(logo_url, width=80)
 
