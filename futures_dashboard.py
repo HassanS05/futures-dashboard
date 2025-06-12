@@ -73,11 +73,8 @@ st.plotly_chart(fig)
 
 # Affichage du logo en haut
 
-logo_url = "assets/logo.png"
 
 
-
-st.image(logo_url, width=80)
 
 st.title("📊 Futures PnL Dashboard")
 contracts = {
