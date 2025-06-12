@@ -2,7 +2,7 @@ import streamlit as st
 from PIL import Image
 
 # Affichage du logo en haut
-st.image("GOLD HRS.png", width=80)
+st.image("GOLDHRS.png", width=80)
 
 
 st.image(logo_url, width=80)
