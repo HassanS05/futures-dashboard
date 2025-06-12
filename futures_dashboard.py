@@ -1,81 +1,8 @@
 import streamlit as st
-
-# Définir les contrats et leurs caractéristiques
-contracts = {
-    "MGC (Micro Gold Futures)": {"tick_size": 0.10, "tick_value": 1.0},
-    "GC (Gold Futures)": {"tick_size": 0.10, "tick_value": 10.0},
-    "MNQ (Micro Nasdaq Futures)": {"tick_size": 0.25, "tick_value": 0.50},
-    "MES (Micro S&P Futures)": {"tick_size": 0.25, "tick_value": 1.25},
-}
-
-st.title("📊 Futures PnL Dashboard")
-
-# Choix du contrat
-contract = st.selectbox("Choisis ton contrat", list(contracts.keys()))
-tick_size = contracts[contract]["tick_size"]
-tick_value = contracts[contract]["tick_value"]
-
-# Entrée utilisateur
-entry_price = st.number_input("Prix d'entrée", value=3358.0)
-tp_price = st.number_input("Take Profit (TP)", value=3381.0)
-sl_price = st.number_input("Stop Loss (SL)", value=3350.0)
-qty = st.number_input("Nombre de contrats", min_value=1, step=1)
-
-# Résumé du scénario
-st.subheader(f"📍 Scénario : {contract} | Entrée {entry_price} | TP {tp_price} | SL {sl_price} | {qty} contrat(s)")
-
-# Calculs
-move_ticks_tp = round(abs(tp_price - entry_price) / tick_size)
-move_ticks_sl = round(abs(entry_price - sl_price) / tick_size)
-
-profit = move_ticks_tp * tick_value * qty
-loss = move_ticks_sl * tick_value * qty
-risk_reward = round(profit / loss, 2) if loss != 0 else "∞"
-
-# Affichage des métriques
-st.metric("Ticks jusqu'au TP", move_ticks_tp)
-st.metric("Ticks jusqu'au SL", move_ticks_sl)
-st.metric("Gain potentiel (USD)", f"${profit:.2f}")
-st.metric("Perte potentielle (USD)", f"${loss:.2f}")
-st.metric("Ratio Risque / Récompense", risk_reward)
-
-# Affichage du graphique
-import plotly.graph_objects as go
-
-fig = go.Figure()
-
-fig.add_trace(go.Scatter(
-    x=[entry_price, tp_price],
-    y=[0, 1],
-    mode="lines+markers",
-    name="Zone de Gain",
-    line=dict(color="green", width=4)
-))
-
-fig.add_trace(go.Scatter(
-    x=[entry_price, sl_price],
-    y=[0, -1],
-    mode="lines+markers",
-    name="Zone de Risque",
-    line=dict(color="red", width=4)
-))
-
-fig.update_layout(
-    title="Visualisation du Trade",
-    xaxis_title="Prix",
-    yaxis_title="PnL",
-    showlegend=True,
-    height=400
-)
-
-st.plotly_chart(fig)
-
-
-import streamlit as st
 import plotly.graph_objects as go
 import pandas as pd
 
-# --- Paramètres des contrats ---
+# ---------------- PARAMÈTRES CONTRATS ----------------
 contracts = {
     "MGC (Micro Gold Futures)": {"tick_size": 0.10, "tick_value": 1.0},
     "GC (Gold Futures)": {"tick_size": 0.10, "tick_value": 10.0},
@@ -85,21 +12,21 @@ contracts = {
 
 st.title("📈 Futures PnL Dashboard")
 
-# Choix du contrat
+# ------------- CHOIX DU CONTRAT ----------------
 contract = st.selectbox("Choisis ton contrat", list(contracts.keys()))
 tick_size = contracts[contract]["tick_size"]
 tick_value = contracts[contract]["tick_value"]
 
-# Entrée utilisateur
+# ------------- ENTRÉES UTILISATEUR --------------
 entry_price = st.number_input("Prix d'entrée", value=3358.0)
 tp_price = st.number_input("Take Profit (TP)", value=3381.0)
 sl_price = st.number_input("Stop Loss (SL)", value=3350.0)
 qty = st.number_input("Nombre de contrats", min_value=1, step=1)
 
-# Résumé scénario
+# ------------- RÉSUMÉ SCÉNARIO ------------------
 st.subheader(f"📍 Scénario : {contract} | Entrée {entry_price} | TP {tp_price} | SL {sl_price} | {qty} contrat(s)")
 
-# Calculs
+# ------------- CALCULS PnL ----------------------
 move_ticks_tp = round(abs(tp_price - entry_price) / tick_size)
 move_ticks_sl = round(abs(entry_price - sl_price) / tick_size)
 
@@ -107,27 +34,23 @@ profit = move_ticks_tp * tick_value * qty
 loss = move_ticks_sl * tick_value * qty
 risk_reward = round(profit / loss, 2) if loss != 0 else "∞"
 
-# Affichage
+# ------------- AFFICHAGE MÉTRIQUES ----------------
 st.metric("Ticks jusqu'au TP", move_ticks_tp)
 st.metric("Ticks jusqu'au SL", move_ticks_sl)
 st.metric("Gain potentiel (USD)", f"${profit:.2f}")
 st.metric("Perte potentielle (USD)", f"${loss:.2f}")
 st.metric("Ratio Risque / Récompense", risk_reward)
 
-# Graphique zone de gain/perte
+# ------------- GRAPHIQUE TRADE ---------------------
 fig = go.Figure()
 fig.add_trace(go.Scatter(
     x=[0, 1], y=[sl_price, entry_price],
-    fill='tozeroy',
-    mode='none',
-    name='Zone de Risque',
+    fill='tozeroy', mode='none', name='Zone de Risque',
     fillcolor='rgba(255, 0, 0, 0.3)'
 ))
 fig.add_trace(go.Scatter(
     x=[1, 2], y=[entry_price, tp_price],
-    fill='tozeroy',
-    mode='none',
-    name='Zone de Gain',
+    fill='tozeroy', mode='none', name='Zone de Gain',
     fillcolor='rgba(0, 255, 0, 0.3)'
 ))
 fig.add_hline(y=sl_price, line=dict(color="red", dash="dot"), name="Stop Loss")
@@ -144,7 +67,7 @@ fig.update_layout(
 
 st.plotly_chart(fig)
 
-# --- MODULE : Suivi des Objectifs Hebdomadaires ---
+# ------------- OBJECTIFS JOURNALIERS -----------------
 st.header("📊 Suivi des Objectifs Hebdomadaires")
 
 jours = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi"]
@@ -163,6 +86,7 @@ df = pd.DataFrame({
     "Résultat": resultats
 })
 
+# ------------- GRAPHIQUE BARRES ---------------------
 fig2 = go.Figure()
 fig2.add_trace(go.Bar(x=df["Jour"], y=df["Objectif"], name="Objectif", marker_color="orange"))
 fig2.add_trace(go.Bar(x=df["Jour"], y=df["Résultat"], name="Résultat", marker_color="blue"))
@@ -183,21 +107,3 @@ fig2.update_layout(
 )
 
 st.plotly_chart(fig2)
-# Affichage du logo en haut
-
-
-
-
-st.title("📊 Futures PnL Dashboard")
-contracts = {
-    "MGC (Micro Gold Futures)": {"tick_size": 0.10, "tick_value": 1.0},
-    "GC (Gold Futures)": {"tick_size": 0.10, "tick_value": 10.0},
-    "MNQ (Micro Nasdaq Futures)": {"tick_size": 0.25, "tick_value": 0.50},
-    "MES (Micro S&P Futures)": {"tick_size": 0.25, "tick_value": 1.25},
-}
-
-
-
-
-
-
