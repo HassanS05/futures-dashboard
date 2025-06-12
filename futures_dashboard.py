@@ -1,5 +1,11 @@
 import streamlit as st
+from PIL import Image
 
+# Affichage du logo en haut
+logo_url = "https://img.icons8.com/fluency/96/trading.png"
+st.image(logo_url, width=80)
+
+st.title("📊 Futures PnL Dashboard")
 contracts = {
     "MGC (Micro Gold Futures)": {"tick_size": 0.10, "tick_value": 1.0},
     "GC (Gold Futures)": {"tick_size": 0.10, "tick_value": 10.0},
@@ -7,7 +13,7 @@ contracts = {
     "MES (Micro S&P Futures)": {"tick_size": 0.25, "tick_value": 1.25},
 }
 
-st.title("📊 Futures PnL Dashboard")
+
 
 contract = st.selectbox("Choisis ton contrat", list(contracts.keys()))
 tick_size = contracts[contract]["tick_size"]
@@ -17,6 +23,7 @@ entry_price = st.number_input("Prix d'entrée", value=3358.0)
 tp_price = st.number_input("Take Profit (TP)", value=3381.0)
 sl_price = st.number_input("Stop Loss (SL)", value=3350.0)
 qty = st.number_input("Nombre de contrats", min_value=1, step=1)
+st.subheader(f"🧠 Scénario : {contract} | Entrée {entry_price} | TP {tp_price} | SL {sl_price} | {qty} contrat(s)")
 
 move_ticks_tp = round(abs(tp_price - entry_price) / tick_size)
 move_ticks_sl = round(abs(entry_price - sl_price) / tick_size)
