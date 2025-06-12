@@ -30,3 +30,36 @@ st.metric("Ticks jusqu'au SL", move_ticks_sl)
 st.metric("Gain potentiel (USD)", f"${profit:.2f}")
 st.metric("Perte potentielle (USD)", f"${loss:.2f}")
 st.metric("Ratio Risque / Récompense", risk_reward)
+import plotly.graph_objects as go
+
+fig = go.Figure()
+
+fig.add_trace(go.Scatter(
+    x=[0, 1], y=[sl_price, entry_price],
+    fill='tozeroy',
+    mode='none',
+    name='Zone de Risque',
+    fillcolor='rgba(255, 0, 0, 0.3)'
+))
+
+fig.add_trace(go.Scatter(
+    x=[1, 2], y=[entry_price, tp_price],
+    fill='tozeroy',
+    mode='none',
+    name='Zone de Gain',
+    fillcolor='rgba(0, 255, 0, 0.3)'
+))
+
+fig.add_hline(y=sl_price, line=dict(color="red", dash="dot"), name="Stop Loss")
+fig.add_hline(y=entry_price, line=dict(color="blue", dash="dash"), name="Entrée")
+fig.add_hline(y=tp_price, line=dict(color="green", dash="dot"), name="Take Profit")
+
+fig.update_layout(
+    title="Visualisation du Trade",
+    yaxis_title="Prix",
+    xaxis=dict(showticklabels=False),
+    showlegend=True,
+    height=400
+)
+
+st.plotly_chart(fig)
