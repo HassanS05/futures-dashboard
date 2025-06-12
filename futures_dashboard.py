@@ -2,7 +2,7 @@ import streamlit as st
 from PIL import Image
 
 # Affichage du logo en haut
-st.image("assets/logo.png", width=80)
+
 
 
 
