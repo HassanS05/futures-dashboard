@@ -3,6 +3,7 @@ from PIL import Image
 
 # Affichage du logo en haut
 
+logo_url = "assets/logo.png"
 
 
 
