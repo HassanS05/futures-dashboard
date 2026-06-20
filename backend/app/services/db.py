@@ -57,7 +57,8 @@ def list_positions() -> list[dict]:
 
 def upsert_position(pos: dict) -> dict:
     pos = {**pos}
-    pos.setdefault("id", new_id())
+    if not pos.get("id"):  # None or missing — generate a fresh id
+        pos["id"] = new_id()
     with _conn() as c:
         c.execute(
             """INSERT INTO positions (id, symbol, asset_class, quantity, avg_price, source)
@@ -88,7 +89,8 @@ def list_transactions(limit: int = 50) -> list[dict]:
 
 def add_transaction(tx: dict) -> dict:
     tx = {**tx}
-    tx.setdefault("id", new_id())
+    if not tx.get("id"):
+        tx["id"] = new_id()
     with _conn() as c:
         c.execute(
             """INSERT INTO transactions (id, symbol, side, quantity, price, fee, timestamp, note)

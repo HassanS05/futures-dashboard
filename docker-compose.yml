@@ -1,0 +1,39 @@
+# =====================================================================
+# HR5 Invest — one-command deployment for your VPS.
+#
+#   1) cp backend/.env.example backend/.env   # fill FMP_API_KEY + an AI key
+#   2) docker compose up -d --build
+#
+# Then open:  http://<your-vps-ip>:3000   (e.g. http://62.171.155.9:3000)
+# API docs :  http://<your-vps-ip>:8000/docs
+# =====================================================================
+services:
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    env_file: ./backend/.env
+    ports:
+      - "8000:8000"
+    volumes:
+      - hr5_data:/app # persists the SQLite portfolio db
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health').status==200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  frontend:
+    build:
+      context: ./frontend
+    restart: unless-stopped
+    environment:
+      # The browser talks to the backend through the frontend's rewrite proxy,
+      # so this is the in-network address of the backend service.
+      NEXT_PUBLIC_API_URL: http://backend:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+
+volumes:
+  hr5_data:

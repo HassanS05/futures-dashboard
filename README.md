@@ -77,6 +77,20 @@ App: <http://localhost:3000>
 | DEX/CEX/broker live sync | 🔜 read-only connectors (Phase 2) |
 | Historical performance (W/M/Y) | 🔜 history service (Phase 2) |
 
+## Deploy on a VPS (one command)
+
+On your server (e.g. `62.171.155.9`), with Docker installed:
+
+```bash
+git clone -b claude/admiring-cray-nly6wp <repo-url> hr5-invest
+cd hr5-invest
+cp backend/.env.example backend/.env   # add FMP_API_KEY + an AI key
+./deploy.sh                            # = docker compose up -d --build
+```
+
+Then open **http://<your-vps-ip>:3000** (API docs at `:8000/docs`).
+Open ports 3000 and 8000 in your firewall. Put Nginx + TLS in front for prod.
+
 ## Security
 
 - **Never** stores seed phrases or private keys — the API actively rejects them.
