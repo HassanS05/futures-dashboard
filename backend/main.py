@@ -11,7 +11,7 @@ from contextlib import asynccontextmanager
 import httpx
 from fastapi import FastAPI, HTTPException, Depends, status, Request, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
@@ -3629,6 +3629,17 @@ async def admin_users(user=Depends(get_current_user)):
         "SELECT id, email, username, full_name, is_admin, is_active, subscription, created_at FROM users").fetchall()]
     conn.close()
     return {"users": users}
+
+# ══════════════════════════════════════════════════════════════
+#  LANDING PUBLIQUE (site marketing) — routes explicites avant le mount
+# ══════════════════════════════════════════════════════════════
+@app.get("/welcome", include_in_schema=False)
+@app.get("/landing", include_in_schema=False)
+async def landing_page():
+    f = STATIC_DIR / "landing.html"
+    if f.exists():
+        return FileResponse(str(f))
+    raise HTTPException(404, "landing.html introuvable")
 
 # ══════════════════════════════════════════════════════════════
 #  STATIC FRONTEND
