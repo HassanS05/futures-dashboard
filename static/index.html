@@ -3017,7 +3017,7 @@ function app() { return {
   async init() {
     if (this.token) {
       await this.loadAll();
-      if(!this._tickerInterval) this._tickerInterval=setInterval(()=>this.autoRefresh(), 60000);
+      if(!this._tickerInterval) this._tickerInterval=setInterval(()=>this.autoRefresh(), 30000);
     }
   },
 
@@ -3040,7 +3040,7 @@ function app() { return {
       localStorage.setItem('hr5_token',this.token);
       localStorage.setItem('hr5_user',JSON.stringify(this.user));
       await this.loadAll();
-      if(!this._tickerInterval) this._tickerInterval=setInterval(()=>this.autoRefresh(),60000);
+      if(!this._tickerInterval) this._tickerInterval=setInterval(()=>this.autoRefresh(),30000);
     } catch(e){this.lerr=e.message;}
     finally{this.ll=false;}
   },
@@ -3099,6 +3099,9 @@ function app() { return {
     else if(p==='scoring') this.loadScoring();
     else if(p==='watchlist') this.loadWatchlist();
     else if(p==='opportunities') this.loadOpps();
+    else if(p==='heatmap') this.loadHeatmap();
+    else if(p==='market') this.loadTopCoins();
+    else if(p==='portfolio') this.loadPortfolio();
     else if(p==='simulation'){ this.loadSimAccounts(); if(this.selectedSim) this.loadSimPositions(this.selectedSim.id); }
   },
   async loadFG(){try{this.fg=await this.api('GET','/api/v1/market/fear-greed')||{value:50,label:'Neutral'};}catch{}},
