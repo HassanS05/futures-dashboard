@@ -1153,6 +1153,20 @@ tbody tr:hover td{background:rgba(94,124,226,.05);}
       </div>
     </div>
 
+    <!-- Où acheter -->
+    <div class="card" style="margin-bottom:10px;">
+      <div style="font-size:11px;color:var(--mu);font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px;">🛒 Où acheter <span x-text="analyzeResult?.symbol"></span></div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;">
+        <template x-for="b in buyLinks(analyzeResult?.symbol, analyzeType)" :key="b.name">
+          <a :href="b.url" target="_blank" rel="noopener" class="btn btn-ghost btn-sm" style="text-decoration:none;gap:6px;">
+            <span x-text="b.name"></span>
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17L17 7M17 7H8M17 7v9"/></svg>
+          </a>
+        </template>
+      </div>
+      <div style="font-size:10px;color:var(--mu);margin-top:8px;">Liens vers les plateformes — vérifie la disponibilité et l'adresse du contrat avant d'acheter.</div>
+    </div>
+
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:10px;">
       <!-- Scores -->
       <div class="card">
@@ -2466,6 +2480,20 @@ tbody tr:hover td{background:rgba(94,124,226,.05);}
           </template>
         </div>
       </div>
+
+      <!-- Où acheter -->
+      <div class="card" style="margin-bottom:14px;">
+        <div style="font-size:11px;color:var(--mu);font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px;">🛒 Où acheter <span x-text="asset.symbol"></span></div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;">
+          <template x-for="b in buyLinks(asset.symbol, asset.asset_type||'crypto')" :key="b.name">
+            <a :href="b.url" target="_blank" rel="noopener" class="btn btn-ghost btn-sm" style="text-decoration:none;gap:6px;">
+              <span x-text="b.name"></span>
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17L17 7M17 7H8M17 7v9"/></svg>
+            </a>
+          </template>
+        </div>
+        <div style="font-size:10px;color:var(--mu);margin-top:8px;">Liens vers les plateformes — vérifie toujours la disponibilité de l'actif et l'adresse du contrat avant d'acheter.</div>
+      </div>
       <div class="card" style="margin-bottom:14px;">
         <div style="font-size:11px;color:var(--mu);font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px;">Indicateurs techniques</div>
         <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px;">
@@ -3147,6 +3175,27 @@ function app() { return {
   async loadTopCoins(){try{const d=await this.api('GET','/api/v1/market/coins?limit=50');this.topCoins=d?.coins||[];this.tickers=this.topCoins.slice(0,15).map(c=>({symbol:(c.symbol||'').toUpperCase(),price:c.current_price||0,change_24h:c.price_change_percentage_24h||0}));}catch{}},
   async loadOpps(){try{const d=await this.api('GET','/api/v1/ai/opportunities');this.opps=d?.opportunities||[];}catch{}},
 
+  buyLinks(symbol, type){
+    const s=(symbol||'').toUpperCase(); const e=encodeURIComponent(s);
+    if(type==='etf'||type==='stock'){
+      return [
+        {name:'TradingView', url:`https://www.tradingview.com/symbols/${e}/`},
+        {name:'Trade Republic', url:'https://traderepublic.com'},
+        {name:'eToro', url:`https://www.etoro.com/markets/${s.toLowerCase()}`},
+        {name:'Interactive Brokers', url:'https://www.interactivebrokers.com'},
+        {name:'Boursorama', url:`https://www.boursorama.com/recherche/${e}`},
+      ];
+    }
+    // crypto / memecoin
+    return [
+      {name:'Binance', url:`https://www.binance.com/en/trade/${e}_USDT`},
+      {name:'Coinbase', url:`https://www.coinbase.com/advanced-trade/spot/${e}-USD`},
+      {name:'Bybit', url:`https://www.bybit.com/en/trade/spot/${e}/USDT`},
+      {name:'DexScreener (DEX)', url:`https://dexscreener.com/search?q=${e}`},
+      {name:'Jupiter (Solana)', url:'https://jup.ag/'},
+      {name:'Uniswap (EVM)', url:'https://app.uniswap.org/'},
+    ];
+  },
   async loadEquityCurve(){
     this.equityLoading=true;
     try{const d=await this.api('GET','/api/v1/portfolios/default/equity-curve?days=90');this.equity=d||{points:[]};}
