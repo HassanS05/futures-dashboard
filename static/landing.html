@@ -3,59 +3,55 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>HR5 Invest — Le copilote d'investissement tout-en-un, augmenté par l'IA</title>
-<meta name="description" content="Réunissez crypto, actions, ETF, wallets DEX et comptes CEX dans un seul terminal augmenté par l'intelligence artificielle. Analyse de portefeuille, recherche, DCA et discipline — en temps réel.">
-<meta property="og:title" content="HR5 Invest — Votre copilote d'investissement">
+<title>HR5 Invest — Le desk d'investissement personnel, augmenté par l'IA</title>
+<meta name="description" content="Crypto, actions, ETF, wallets DEX et comptes CEX réunis dans un terminal unique, en temps réel et augmenté par l'IA. La clarté d'un desk institutionnel, pour vos investissements.">
+<meta property="og:title" content="HR5 Invest — Votre desk d'investissement augmenté par l'IA">
 <meta property="og:description" content="Tous vos actifs. Une seule intelligence.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2306070A'/%3E%3Ctext x='16' y='22' font-size='15' font-family='Arial' font-weight='bold' text-anchor='middle' fill='%235B7CFA'%3EH5%3C/text%3E%3C/svg%3E">
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
 <script>
-/* ── DESIGN SYSTEM (tokens Tailwind) ───────────────────────────── */
-tailwind.config = {
-  theme: { extend: {
-    colors: {
-      ink:'#06070A', surface:'#0D0F14', surface2:'#12151B', line:'#1B1F27',
-      txt:'#EAECF2', muted:'#8A92A3', faint:'#5B6273',
-      brand:{ DEFAULT:'#5B7CFA', 600:'#4A66E8', sky:'#46B6E6' },
-      up:'#2FCB83', down:'#FF5C6C', gold:'#D9B679',
-    },
-    fontFamily:{ sans:['Inter','system-ui','sans-serif'], mono:['JetBrains Mono','monospace'] },
-    borderRadius:{ xl2:'18px' },
-    boxShadow:{
-      soft:'0 1px 0 rgba(255,255,255,.03) inset, 0 12px 40px -16px rgba(0,0,0,.8)',
-      glow:'0 0 0 1px rgba(91,124,250,.25), 0 12px 50px -12px rgba(91,124,250,.35)',
-    },
-    maxWidth:{ container:'1200px' },
-  }}
-}
+tailwind.config = { theme: { extend: {
+  colors:{ ink:'#06070A', surface:'#0D0F14', surface2:'#12151B', line:'#1B1F27',
+    txt:'#EAECF2', muted:'#8A92A3', faint:'#5B6273',
+    brand:{ DEFAULT:'#5B7CFA', 600:'#4A66E8', sky:'#46B6E6' }, up:'#2FCB83', down:'#FF5C6C', gold:'#D9B679' },
+  fontFamily:{ sans:['Inter','system-ui','sans-serif'], mono:['JetBrains Mono','monospace'] },
+  maxWidth:{ container:'1180px' } } } }
 </script>
 <style>
   body{background:#06070A;color:#EAECF2;font-family:'Inter',sans-serif;-webkit-font-smoothing:antialiased;}
   .mono{font-family:'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;}
-  /* Ambiance : halos très discrets (sobre, pas "jouet") */
-  body::before{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;background:
-    radial-gradient(900px 460px at 12% -8%, rgba(91,124,250,.10), transparent 58%),
-    radial-gradient(760px 420px at 100% -4%, rgba(70,182,230,.06), transparent 54%);}
-  .grad-text{background:linear-gradient(135deg,#8AA0FF,#5FC4EA);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
-  .glass{background:rgba(13,15,20,.72);backdrop-filter:blur(14px);}
-  /* Révélation au scroll */
-  [data-reveal]{opacity:0;transform:translateY(16px);transition:opacity .6s cubic-bezier(.22,.61,.36,1),transform .6s cubic-bezier(.22,.61,.36,1);}
+  body::before{content:'';position:fixed;inset:0;z-index:-2;pointer-events:none;background:
+    radial-gradient(820px 460px at 8% -6%, rgba(91,124,250,.13), transparent 60%),
+    radial-gradient(720px 420px at 100% -2%, rgba(70,182,230,.08), transparent 56%),
+    radial-gradient(900px 600px at 50% 120%, rgba(91,124,250,.05), transparent 60%);}
+  body::after{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;opacity:.5;
+    background-image:linear-gradient(rgba(255,255,255,.022) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.022) 1px,transparent 1px);
+    background-size:48px 48px;-webkit-mask-image:radial-gradient(ellipse 80% 50% at 50% 0%,#000,transparent 75%);mask-image:radial-gradient(ellipse 80% 50% at 50% 0%,#000,transparent 75%);}
+  .grad-text{background:linear-gradient(120deg,#A9B8FF 0%,#5B7CFA 45%,#5FC4EA 100%);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+  .glass{background:rgba(8,10,14,.72);backdrop-filter:blur(16px);}
+  [data-reveal]{opacity:0;transform:translateY(18px);transition:opacity .7s cubic-bezier(.22,.61,.36,1),transform .7s cubic-bezier(.22,.61,.36,1);}
   [data-reveal].in{opacity:1;transform:none;}
-  /* Boutons */
   .btn{display:inline-flex;align-items:center;gap:.5rem;font-weight:600;border-radius:12px;transition:all .18s cubic-bezier(.22,.61,.36,1);cursor:pointer;white-space:nowrap;}
-  .btn-primary{background:linear-gradient(135deg,#5B7CFA,#4A66E8);color:#fff;padding:.7rem 1.25rem;box-shadow:0 8px 24px -10px rgba(91,124,250,.7);}
-  .btn-primary:hover{transform:translateY(-1px);box-shadow:0 12px 30px -10px rgba(91,124,250,.85);}
+  .btn-primary{background:linear-gradient(135deg,#5B7CFA,#4A66E8);color:#fff;padding:.72rem 1.3rem;box-shadow:0 10px 30px -12px rgba(91,124,250,.8);}
+  .btn-primary:hover{transform:translateY(-1px);box-shadow:0 16px 38px -12px rgba(91,124,250,.95);}
   .btn-primary:active{transform:translateY(0) scale(.99);}
-  .btn-ghost{border:1px solid #232833;color:#EAECF2;padding:.7rem 1.15rem;}
+  .btn-ghost{border:1px solid #242a35;color:#EAECF2;padding:.72rem 1.2rem;}
   .btn-ghost:hover{border-color:#3a4254;background:rgba(255,255,255,.03);}
-  .btn:focus-visible{outline:2px solid #5B7CFA;outline-offset:2px;}
-  a:focus-visible{outline:2px solid #5B7CFA;outline-offset:3px;border-radius:6px;}
-  .card{background:linear-gradient(180deg,#0F1218,#0B0D12);border:1px solid #1B1F27;border-radius:16px;}
+  .btn:focus-visible,a:focus-visible{outline:2px solid #5B7CFA;outline-offset:3px;border-radius:8px;}
+  .card{background:linear-gradient(180deg,#0F1218,#0A0C11);border:1px solid #1B1F27;border-radius:16px;}
   .card:hover{border-color:#2A313E;}
   .chip{border:1px solid #1B1F27;background:rgba(255,255,255,.02);border-radius:999px;}
-  @keyframes floaty{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+  .pos{color:#2FCB83}.neg{color:#FF5C6C}
+  .mock{border:1px solid #1A1F29;border-radius:16px;overflow:hidden;background:#080A0E;box-shadow:0 40px 120px -40px rgba(0,0,0,.9),0 0 0 1px rgba(255,255,255,.02) inset;}
+  .mock-nav{font-size:11px;color:#7A828F;padding:7px 10px;border-radius:8px;display:flex;align-items:center;gap:8px;}
+  .mock-nav.active{background:rgba(91,124,250,.14);color:#cdd7ff;}
+  .dot{height:6px;width:6px;border-radius:50%}
+  .marquee{display:flex;gap:0;white-space:nowrap;animation:scroll 38s linear infinite;}
+  @keyframes scroll{to{transform:translateX(-50%)}}
+  .tick{display:inline-flex;align-items:center;gap:8px;padding:0 22px;border-right:1px solid #15191F;font-size:12px;}
+  @keyframes floaty{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}
   @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}[data-reveal]{opacity:1;transform:none}}
 </style>
 </head>
@@ -65,149 +61,180 @@ tailwind.config = {
 <header class="fixed top-0 inset-x-0 z-50 glass border-b border-line/70">
   <nav class="max-w-container mx-auto px-5 h-16 flex items-center justify-between" aria-label="Principal">
     <a href="#top" class="flex items-center gap-2.5">
-      <span class="grid place-items-center h-9 w-9 rounded-xl text-ink font-extrabold" style="background:linear-gradient(135deg,#5B7CFA,#46B6E6)">H5</span>
+      <span class="grid place-items-center h-9 w-9 rounded-xl text-ink font-black" style="background:linear-gradient(135deg,#5B7CFA,#46B6E6)">H5</span>
       <span class="font-bold tracking-tight">HR5 <span class="text-muted font-medium">Invest</span></span>
     </a>
     <div class="hidden md:flex items-center gap-7 text-sm text-muted">
-      <a href="#features" class="hover:text-txt transition">Plateforme</a>
+      <a href="#product" class="hover:text-txt transition">Le desk</a>
       <a href="#copilot" class="hover:text-txt transition">Copilote IA</a>
-      <a href="#how" class="hover:text-txt transition">Comment ça marche</a>
+      <a href="#features" class="hover:text-txt transition">Plateforme</a>
       <a href="#pricing" class="hover:text-txt transition">Tarifs</a>
       <a href="#faq" class="hover:text-txt transition">FAQ</a>
     </div>
     <div class="hidden md:flex items-center gap-3">
       <a href="/app" class="text-sm text-muted hover:text-txt transition">Se connecter</a>
-      <a href="/app" class="btn btn-primary text-sm">Commencer gratuitement</a>
+      <a href="/app" class="btn btn-primary text-sm">Ouvrir mon desk</a>
     </div>
     <button class="md:hidden p-2 text-muted" @click="mobile=!mobile" aria-label="Menu" :aria-expanded="mobile">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
     </button>
   </nav>
   <div x-show="mobile" x-collapse class="md:hidden border-t border-line glass px-5 py-4 space-y-3 text-sm" x-cloak>
-    <a href="#features" @click="mobile=false" class="block text-muted">Plateforme</a>
+    <a href="#product" @click="mobile=false" class="block text-muted">Le desk</a>
     <a href="#copilot" @click="mobile=false" class="block text-muted">Copilote IA</a>
-    <a href="#how" @click="mobile=false" class="block text-muted">Comment ça marche</a>
+    <a href="#features" @click="mobile=false" class="block text-muted">Plateforme</a>
     <a href="#pricing" @click="mobile=false" class="block text-muted">Tarifs</a>
-    <a href="/app" class="btn btn-primary w-full justify-center mt-2">Commencer gratuitement</a>
+    <a href="/app" class="btn btn-primary w-full justify-center mt-2">Ouvrir mon desk</a>
   </div>
 </header>
 
 <main id="top" class="pt-16">
 
 <!-- ════ HERO ════ -->
-<section class="relative max-w-container mx-auto px-5 pt-16 md:pt-24 pb-16">
-  <div class="grid lg:grid-cols-2 gap-12 items-center">
-    <div data-reveal>
-      <span class="chip inline-flex items-center gap-2 px-3 py-1 text-xs text-muted mb-6">
-        <span class="h-1.5 w-1.5 rounded-full bg-up"></span> Nouveau · Copilote multi-modèles (Claude · GPT · Gemini)
-      </span>
-      <h1 class="text-4xl md:text-6xl font-extrabold leading-[1.05] tracking-tight">
-        Tous vos actifs.<br><span class="grad-text">Une seule intelligence.</span>
-      </h1>
-      <p class="mt-6 text-lg text-muted max-w-xl leading-relaxed">
-        HR5 Invest réunit vos cryptos, actions, ETF, wallets DEX et comptes CEX dans un terminal
-        unique augmenté par l'IA. Analysez, arbitrez et décidez plus vite — avec la clarté d'un desk institutionnel.
-      </p>
-      <div class="mt-8 flex flex-wrap items-center gap-3">
-        <a href="/app" class="btn btn-primary text-base">Commencer gratuitement
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
-        </a>
-        <a href="#copilot" class="btn btn-ghost text-base">Découvrir le copilote</a>
-      </div>
-      <p class="mt-4 text-xs text-faint">Sans carte bancaire · Lecture seule · Vos clés ne quittent jamais votre poste.</p>
+<section class="max-w-container mx-auto px-5 pt-14 md:pt-20 pb-10">
+  <div class="text-center max-w-3xl mx-auto" data-reveal>
+    <span class="chip inline-flex items-center gap-2 px-3 py-1 text-xs text-muted mb-6">
+      <span class="dot bg-up"></span> Copilote multi-modèles · Claude · GPT · Gemini
+    </span>
+    <h1 class="text-5xl md:text-7xl font-black leading-[1.02] tracking-tight">
+      Votre desk d'investissement.<br><span class="grad-text">Augmenté par l'IA.</span>
+    </h1>
+    <p class="mt-6 text-lg md:text-xl text-muted max-w-2xl mx-auto leading-relaxed">
+      Crypto, actions, ETF, wallets DEX et comptes CEX réunis dans un terminal unique, en temps réel.
+      La rigueur d'un desk institutionnel — pour piloter votre patrimoine.
+    </p>
+    <div class="mt-8 flex flex-wrap items-center justify-center gap-3">
+      <a href="/app" class="btn btn-primary text-base">Ouvrir mon desk
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
+      <a href="#product" class="btn btn-ghost text-base">Voir le terminal</a>
     </div>
+    <p class="mt-4 text-xs text-faint">Sans carte bancaire · Lecture seule · Vos clés ne quittent jamais votre poste.</p>
+  </div>
 
-    <!-- Aperçu produit (mock CSS, aucune image externe) -->
-    <div data-reveal class="relative">
-      <div class="card shadow-soft p-4 md:p-5" style="animation:floaty 7s ease-in-out infinite">
-        <div class="flex items-center justify-between mb-4">
-          <div>
-            <p class="text-[11px] uppercase tracking-widest text-faint">Valeur du portefeuille</p>
-            <p class="mono text-3xl font-bold mt-1">€214 920<span class="text-up text-base align-top ml-2">+4,6%</span></p>
+  <!-- Réplique haute-fidélité du terminal -->
+  <div class="mt-14 relative" data-reveal>
+    <div class="absolute -inset-x-10 -top-10 h-40 blur-3xl opacity-60" style="background:radial-gradient(closest-side,rgba(91,124,250,.25),transparent)"></div>
+    <div class="mock relative max-w-5xl mx-auto" style="animation:floaty 9s ease-in-out infinite">
+      <div class="flex items-center border-b border-line/80 bg-[#0A0C11] overflow-hidden">
+        <span class="text-[10px] font-semibold text-faint px-3 py-2 border-r border-line shrink-0">LIVE</span>
+        <div class="overflow-hidden flex-1"><div class="marquee">
+          <span class="tick"><b class="text-muted">BTC</b><span class="mono">$64 092</span><span class="mono pos">+1,46%</span></span>
+          <span class="tick"><b class="text-muted">ETH</b><span class="mono">$1 738</span><span class="mono pos">+1,90%</span></span>
+          <span class="tick"><b class="text-muted">SOL</b><span class="mono">$71,85</span><span class="mono pos">+3,68%</span></span>
+          <span class="tick"><b class="text-muted">BNB</b><span class="mono">$586</span><span class="mono pos">+1,38%</span></span>
+          <span class="tick"><b class="text-muted">XRP</b><span class="mono">$1,15</span><span class="mono pos">+1,02%</span></span>
+          <span class="tick"><b class="text-muted">BTC</b><span class="mono">$64 092</span><span class="mono pos">+1,46%</span></span>
+          <span class="tick"><b class="text-muted">ETH</b><span class="mono">$1 738</span><span class="mono pos">+1,90%</span></span>
+          <span class="tick"><b class="text-muted">SOL</b><span class="mono">$71,85</span><span class="mono pos">+3,68%</span></span>
+          <span class="tick"><b class="text-muted">BNB</b><span class="mono">$586</span><span class="mono pos">+1,38%</span></span>
+          <span class="tick"><b class="text-muted">XRP</b><span class="mono">$1,15</span><span class="mono pos">+1,02%</span></span>
+        </div></div>
+        <span class="text-[10px] text-faint px-3 py-2 border-l border-line shrink-0 hidden sm:flex items-center gap-1.5"><span class="dot bg-up"></span>Temps réel</span>
+      </div>
+      <div class="grid grid-cols-12">
+        <aside class="hidden md:flex col-span-3 lg:col-span-2 flex-col gap-1 border-r border-line/80 bg-[#0A0C11] p-3">
+          <div class="text-[10px] font-bold tracking-widest text-faint px-2 pb-1">MARCHÉ</div>
+          <div class="mock-nav active"><span class="dot bg-brand"></span>Dashboard</div>
+          <div class="mock-nav"><span class="dot bg-faint"></span>Marchés</div>
+          <div class="mock-nav"><span class="dot bg-faint"></span>ETF &amp; Actions</div>
+          <div class="text-[10px] font-bold tracking-widest text-faint px-2 pt-3 pb-1">INTELLIGENCE</div>
+          <div class="mock-nav"><span class="dot bg-faint"></span>Assistant IA</div>
+          <div class="mock-nav"><span class="dot bg-faint"></span>Analyse IA</div>
+          <div class="mock-nav"><span class="dot bg-faint"></span>Plan DCA</div>
+        </aside>
+        <div class="col-span-12 md:col-span-9 lg:col-span-10 p-4 md:p-5">
+          <div class="flex items-center justify-between mb-3">
+            <div><p class="font-semibold text-sm">Dashboard</p><p class="text-[11px] text-faint">Bonjour, HR5 — vue consolidée</p></div>
+            <span class="chip px-2.5 py-1 text-[10px] text-muted">IA · Claude · GPT · Gemini</span>
           </div>
-          <span class="chip px-2.5 py-1 text-[11px] text-muted flex items-center gap-1.5">
-            <span class="h-1.5 w-1.5 rounded-full bg-up animate-pulse"></span> Temps réel
-          </span>
-        </div>
-        <!-- mini courbe -->
-        <svg viewBox="0 0 320 90" class="w-full h-24" preserveAspectRatio="none">
-          <defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stop-color="#5B7CFA" stop-opacity=".35"/><stop offset="100%" stop-color="#5B7CFA" stop-opacity="0"/></linearGradient></defs>
-          <path d="M0 70 L40 60 L80 64 L120 44 L160 50 L200 30 L240 36 L280 18 L320 24 V90 H0 Z" fill="url(#g)"/>
-          <path d="M0 70 L40 60 L80 64 L120 44 L160 50 L200 30 L240 36 L280 18 L320 24" fill="none" stroke="#5B7CFA" stroke-width="2"/>
-        </svg>
-        <div class="grid grid-cols-3 gap-2 mt-4">
-          <div class="rounded-xl bg-surface2 border border-line p-3"><p class="text-[10px] text-faint uppercase">Crypto</p><p class="mono text-sm font-semibold mt-0.5">58,2%</p></div>
-          <div class="rounded-xl bg-surface2 border border-line p-3"><p class="text-[10px] text-faint uppercase">Actions</p><p class="mono text-sm font-semibold mt-0.5">27,4%</p></div>
-          <div class="rounded-xl bg-surface2 border border-line p-3"><p class="text-[10px] text-faint uppercase">ETF</p><p class="mono text-sm font-semibold mt-0.5">14,4%</p></div>
-        </div>
-        <div class="mt-3 rounded-xl border border-brand/30 bg-brand/5 p-3 flex items-start gap-2.5">
-          <span class="grid place-items-center h-6 w-6 rounded-lg bg-brand/20 text-brand text-xs font-bold shrink-0">IA</span>
-          <p class="text-xs text-muted leading-relaxed">« Concentration élevée sur la crypto (58%). Envisagez d'alléger BTC de 5% vers un ETF obligataire pour réduire la volatilité. »</p>
+          <div class="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
+            <div class="card p-3"><p class="text-[10px] uppercase text-faint">Valeur portefeuille</p><p class="mono text-lg font-bold mt-1">€214 920</p><p class="mono text-[11px] pos">+4,6%</p></div>
+            <div class="card p-3"><p class="text-[10px] uppercase text-faint">P&amp;L global</p><p class="mono text-lg font-bold mt-1 pos">+€38 410</p><p class="mono text-[11px] pos">+21,7%</p></div>
+            <div class="card p-3"><p class="text-[10px] uppercase text-faint">Sharpe</p><p class="mono text-lg font-bold mt-1">1,84</p><p class="text-[11px] text-faint">12 mois</p></div>
+            <div class="card p-3"><p class="text-[10px] uppercase text-faint">Fear &amp; Greed</p><p class="mono text-lg font-bold mt-1 text-down">23</p><p class="text-[11px] text-faint">Extreme Fear</p></div>
+          </div>
+          <div class="grid lg:grid-cols-3 gap-2.5 mt-2.5">
+            <div class="card p-3 lg:col-span-2">
+              <div class="flex items-center justify-between mb-1"><p class="text-[11px] text-muted">Courbe d'équity</p><p class="text-[10px] text-faint">90 j</p></div>
+              <svg viewBox="0 0 480 120" class="w-full h-28" preserveAspectRatio="none">
+                <defs><linearGradient id="eq" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#5B7CFA" stop-opacity=".30"/><stop offset="100%" stop-color="#5B7CFA" stop-opacity="0"/></linearGradient></defs>
+                <path d="M0 96 L48 88 L96 92 L144 70 L192 78 L240 54 L288 60 L336 40 L384 48 L432 24 L480 30 V120 H0 Z" fill="url(#eq)"/>
+                <path d="M0 96 L48 88 L96 92 L144 70 L192 78 L240 54 L288 60 L336 40 L384 48 L432 24 L480 30" fill="none" stroke="#5B7CFA" stroke-width="2"/>
+              </svg>
+            </div>
+            <div class="card p-3 flex flex-col">
+              <div class="flex items-center gap-2 mb-2"><span class="grid place-items-center h-5 w-5 rounded bg-brand/20 text-brand text-[9px] font-bold">IA</span><p class="text-[11px] font-semibold">Copilote</p></div>
+              <p class="text-[11px] text-muted leading-relaxed flex-1">Concentration crypto à 58%. Alléger BTC de 5% vers un ETF obligataire réduirait la volatilité de ~3 pts.</p>
+              <div class="flex gap-1.5 mt-2"><span class="chip px-2 py-0.5 text-[10px] text-up">Rééquilibrer</span><span class="chip px-2 py-0.5 text-[10px] text-muted">Détails</span></div>
+            </div>
+          </div>
+          <div class="card mt-2.5 p-0 overflow-hidden">
+            <div class="grid grid-cols-12 text-[10px] uppercase text-faint px-3 py-2 border-b border-line">
+              <span class="col-span-4">Actif</span><span class="col-span-3 text-right">Prix</span><span class="col-span-3 text-right">Valeur</span><span class="col-span-2 text-right">24h</span></div>
+            <div class="grid grid-cols-12 px-3 py-2 text-xs items-center"><span class="col-span-4 font-medium">BTC</span><span class="col-span-3 text-right mono text-muted">$64 092</span><span class="col-span-3 text-right mono">€96 200</span><span class="col-span-2 text-right mono pos">+1,46%</span></div>
+            <div class="grid grid-cols-12 px-3 py-2 text-xs items-center border-t border-line/60"><span class="col-span-4 font-medium">ETH</span><span class="col-span-3 text-right mono text-muted">$1 738</span><span class="col-span-3 text-right mono">€41 030</span><span class="col-span-2 text-right mono pos">+1,90%</span></div>
+            <div class="grid grid-cols-12 px-3 py-2 text-xs items-center border-t border-line/60"><span class="col-span-4 font-medium">SPY · ETF</span><span class="col-span-3 text-right mono text-muted">$548</span><span class="col-span-3 text-right mono">€28 700</span><span class="col-span-2 text-right mono pos">+0,32%</span></div>
+          </div>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- Bandeau confiance / sources -->
-  <div data-reveal class="mt-16 pt-8 border-t border-line">
-    <p class="text-center text-xs uppercase tracking-widest text-faint mb-5">Données agrégées en direct depuis des sources de référence</p>
-    <div class="flex flex-wrap items-center justify-center gap-x-10 gap-y-3 text-muted/80 font-semibold">
-      <span>CoinGecko</span><span>Nasdaq</span><span>Binance</span><span>Etherscan</span><span>Moralis</span><span>Solana RPC</span>
-    </div>
+  <!-- stats band -->
+  <div class="mt-14 grid grid-cols-2 md:grid-cols-4 gap-px bg-line rounded-2xl overflow-hidden border border-line" data-reveal>
+    <div class="bg-ink p-6 text-center"><p class="mono text-3xl font-bold grad-text">6</p><p class="text-xs text-muted mt-1">agents IA spécialisés</p></div>
+    <div class="bg-ink p-6 text-center"><p class="mono text-3xl font-bold grad-text">3</p><p class="text-xs text-muted mt-1">modèles (Claude·GPT·Gemini)</p></div>
+    <div class="bg-ink p-6 text-center"><p class="mono text-3xl font-bold grad-text">5</p><p class="text-xs text-muted mt-1">classes d'actifs unifiées</p></div>
+    <div class="bg-ink p-6 text-center"><p class="mono text-3xl font-bold grad-text">24/7</p><p class="text-xs text-muted mt-1">données en temps réel</p></div>
   </div>
 </section>
 
-<!-- ════ FEATURES — Multi-actifs ════ -->
-<section id="features" class="max-w-container mx-auto px-5 py-20">
-  <div data-reveal class="max-w-2xl">
-    <p class="text-brand font-semibold text-sm mb-3">Une plateforme, tous vos marchés</p>
-    <h2 class="text-3xl md:text-4xl font-bold tracking-tight">Le terminal qui réunit ce qui était éparpillé</h2>
-    <p class="mt-4 text-muted text-lg">Fini les onglets, les exports CSV et les tableurs. HR5 Invest consolide l'intégralité de votre patrimoine financier en une vue unique, vivante et lisible.</p>
+<!-- ════ PRODUCT ════ -->
+<section id="product" class="max-w-container mx-auto px-5 py-20">
+  <div class="text-center max-w-2xl mx-auto" data-reveal>
+    <p class="text-brand font-semibold text-sm mb-3">Le terminal</p>
+    <h2 class="text-3xl md:text-5xl font-extrabold tracking-tight">Un desk, pensé comme une salle de marché</h2>
+    <p class="mt-4 text-muted text-lg">Chaque écran est conçu pour la décision : dense en information, lisible d'un coup d'œil, sans bruit.</p>
   </div>
-  <div class="grid md:grid-cols-3 gap-5 mt-12">
-    <div data-reveal class="card p-6">
-      <div class="grid place-items-center h-11 w-11 rounded-xl bg-brand/15 text-brand mb-4">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/></svg>
+  <div class="grid md:grid-cols-3 gap-4 mt-12">
+    <div class="card p-7 md:col-span-2 md:row-span-2 flex flex-col" data-reveal>
+      <h3 class="font-semibold text-xl">Vue patrimoniale consolidée</h3>
+      <p class="mt-2 text-muted text-sm leading-relaxed max-w-md">Cryptos, actions, ETF, wallets DEX et comptes CEX agrégés. Valeur totale, P&L, allocation et performances par classe d'actifs — recalculés en continu.</p>
+      <div class="mt-6 grid grid-cols-3 gap-2.5">
+        <div class="rounded-xl bg-surface2 border border-line p-3 text-center"><p class="mono text-lg font-bold">58%</p><p class="text-[10px] text-faint mt-0.5">Crypto</p></div>
+        <div class="rounded-xl bg-surface2 border border-line p-3 text-center"><p class="mono text-lg font-bold">27%</p><p class="text-[10px] text-faint mt-0.5">Actions</p></div>
+        <div class="rounded-xl bg-surface2 border border-line p-3 text-center"><p class="mono text-lg font-bold">15%</p><p class="text-[10px] text-faint mt-0.5">ETF</p></div>
       </div>
-      <h3 class="font-semibold text-lg">Vue patrimoniale unifiée</h3>
-      <p class="mt-2 text-muted text-sm leading-relaxed">Crypto, actions, ETF, wallets DEX et comptes CEX agrégés. Valeur totale, P&L et allocation, consolidés en continu.</p>
     </div>
-    <div data-reveal class="card p-6">
-      <div class="grid place-items-center h-11 w-11 rounded-xl bg-brand/15 text-brand mb-4">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M2 12h20"/><circle cx="12" cy="12" r="9"/></svg>
-      </div>
-      <h3 class="font-semibold text-lg">Temps réel, sans rechargement</h3>
-      <p class="mt-2 text-muted text-sm leading-relaxed">Prix, positions, P&L et alertes se mettent à jour en direct. Cache intelligent et flux optimisés pour une réactivité de salle de marché.</p>
+    <div class="card p-7" data-reveal>
+      <h3 class="font-semibold text-lg">Temps réel</h3>
+      <p class="mt-2 text-muted text-sm leading-relaxed">Prix, P&L et alertes sans rechargement. Cache intelligent, réactivité de salle de marché.</p>
     </div>
-    <div data-reveal class="card p-6">
-      <div class="grid place-items-center h-11 w-11 rounded-xl bg-brand/15 text-brand mb-4">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/></svg>
-      </div>
+    <div class="card p-7" data-reveal>
       <h3 class="font-semibold text-lg">Sécurité par conception</h3>
-      <p class="mt-2 text-muted text-sm leading-relaxed">Lecture seule, clés chiffrées, <strong class="text-txt">jamais</strong> de phrase de récupération. HR5 conseille — il ne touche jamais à vos fonds.</p>
+      <p class="mt-2 text-muted text-sm leading-relaxed">Lecture seule, clés chiffrées, <strong class="text-txt">jamais</strong> de phrase de récupération.</p>
     </div>
   </div>
 </section>
 
 <!-- ════ COPILOTE IA ════ -->
-<section id="copilot" class="relative py-20 border-y border-line bg-surface/40">
+<section id="copilot" class="py-20 border-y border-line bg-surface/40">
   <div class="max-w-container mx-auto px-5">
-    <div data-reveal class="max-w-2xl">
+    <div class="max-w-2xl" data-reveal>
       <p class="text-brand font-semibold text-sm mb-3">Intelligence d'investissement</p>
-      <h2 class="text-3xl md:text-4xl font-bold tracking-tight">Cinq agents IA spécialisés, un seul copilote</h2>
-      <p class="mt-4 text-muted text-lg">Routage multi-modèles automatique (Claude, GPT, Gemini) : la bonne IA pour la bonne tâche — recherche, analyse, synthèse, rapports.</p>
+      <h2 class="text-3xl md:text-5xl font-extrabold tracking-tight">Six agents. Un copilote. Le bon modèle, à chaque tâche.</h2>
+      <p class="mt-4 text-muted text-lg">Routage multi-modèles automatique : recherche profonde sur Claude, synthèses rapides sur Gemini, structuration sur GPT.</p>
     </div>
-    <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-5 mt-12">
+    <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-4 mt-12">
       <template x-for="a in [
-        {t:'Portfolio AI', d:'Diversification, exposition, risque et suggestions de rééquilibrage chiffrées.'},
-        {t:'DCA AI', d:'Optimisation du DCA, prix moyen, scénarios et projections d\'accumulation.'},
-        {t:'Crypto Research AI', d:'Fondamentaux, tokenomics, TVL, on-chain, concurrents et scoring 0-100.'},
-        {t:'Market AI', d:'Briefing quotidien, tendances, événements clés et opportunités détectées.'},
-        {t:'Trading Journal AI', d:'Analyse de vos performances, erreurs récurrentes et suivi de discipline.'},
-        {t:'IPO AI', d:'Verdict d\'investissement sur les introductions en bourse à venir.'},
+        {t:'Portfolio AI', d:'Diversification, exposition, risque et rééquilibrage chiffré.'},
+        {t:'DCA AI', d:'Optimisation du DCA, prix moyen, scénarios et projections.'},
+        {t:'Crypto Research AI', d:'Fondamentaux, tokenomics, TVL, on-chain, scoring 0-100.'},
+        {t:'Market AI', d:'Briefing quotidien, tendances et opportunités détectées.'},
+        {t:'Trading Journal AI', d:'Performances, erreurs récurrentes et discipline.'},
+        {t:'IPO AI', d:'Verdict d\'investissement sur les introductions à venir.'},
       ]" :key="a.t">
-        <div class="card p-6 group">
+        <div class="card p-6">
           <span class="grid place-items-center h-9 w-9 rounded-lg bg-brand/15 text-brand text-xs font-bold mb-4">IA</span>
           <h3 class="font-semibold" x-text="a.t"></h3>
           <p class="mt-2 text-muted text-sm leading-relaxed" x-text="a.d"></p>
@@ -217,54 +244,25 @@ tailwind.config = {
   </div>
 </section>
 
-<!-- ════ COMMENT ÇA MARCHE ════ -->
-<section id="how" class="max-w-container mx-auto px-5 py-20">
-  <div data-reveal class="text-center max-w-2xl mx-auto">
-    <h2 class="text-3xl md:text-4xl font-bold tracking-tight">Opérationnel en moins de 3 minutes</h2>
-    <p class="mt-4 text-muted text-lg">Sans installation, sans risque pour vos fonds.</p>
-  </div>
-  <div class="grid md:grid-cols-3 gap-6 mt-12">
-    <div data-reveal class="relative">
-      <div class="mono text-brand text-sm mb-3">01</div>
-      <h3 class="font-semibold text-lg">Connectez vos sources</h3>
-      <p class="mt-2 text-muted text-sm leading-relaxed">Ajoutez vos positions, ou liez vos wallets (adresse publique) et comptes d'échange en lecture seule.</p>
-    </div>
-    <div data-reveal>
-      <div class="mono text-brand text-sm mb-3">02</div>
-      <h3 class="font-semibold text-lg">Visualisez tout, en direct</h3>
-      <p class="mt-2 text-muted text-sm leading-relaxed">Votre patrimoine consolidé : valeur, P&L, allocation, risque et performances par classe d'actifs.</p>
-    </div>
-    <div data-reveal>
-      <div class="mono text-brand text-sm mb-3">03</div>
-      <h3 class="font-semibold text-lg">Décidez avec l'IA</h3>
-      <p class="mt-2 text-muted text-sm leading-relaxed">Interrogez le copilote, recevez des analyses chiffrées et des plans d'action concrets.</p>
-    </div>
-  </div>
-</section>
-
-<!-- ════ ANALYTIQUE ════ -->
-<section class="max-w-container mx-auto px-5 py-20">
+<!-- ════ FEATURES / ANALYTIQUE ════ -->
+<section id="features" class="max-w-container mx-auto px-5 py-20">
   <div class="grid lg:grid-cols-2 gap-12 items-center">
     <div data-reveal>
-      <p class="text-brand font-semibold text-sm mb-3">Analytique de niveau institutionnel</p>
-      <h2 class="text-3xl md:text-4xl font-bold tracking-tight">Mesurez ce qui compte vraiment</h2>
-      <p class="mt-4 text-muted text-lg">Au-delà du prix : comprenez le risque réel de votre portefeuille avec les métriques utilisées par les professionnels.</p>
+      <p class="text-brand font-semibold text-sm mb-3">Analytique institutionnelle</p>
+      <h2 class="text-3xl md:text-4xl font-bold tracking-tight">Mesurez le risque, pas seulement le prix</h2>
       <ul class="mt-6 space-y-3 text-sm">
-        <template x-for="m in ['Ratio de Sharpe & volatilité annualisée','Drawdown maximum & Value-at-Risk','Matrice de corrélation entre vos actifs','Performance par classe d\'actifs','Heatmap sectorielle & indicateurs de risque']" :key="m">
-          <li class="flex items-center gap-3 text-muted">
-            <span class="grid place-items-center h-5 w-5 rounded-full bg-up/15 text-up shrink-0">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 13l4 4L19 7"/></svg>
-            </span><span x-text="m"></span>
-          </li>
+        <template x-for="m in ['Ratio de Sharpe & volatilité annualisée','Drawdown maximum & Value-at-Risk (95%)','Matrice de corrélation entre vos actifs','Performance par classe d\'actifs','Heatmap sectorielle & scoring d\'opportunités']" :key="m">
+          <li class="flex items-center gap-3 text-muted"><span class="grid place-items-center h-5 w-5 rounded-full bg-up/15 text-up shrink-0"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 13l4 4L19 7"/></svg></span><span x-text="m"></span></li>
         </template>
       </ul>
+      <a href="/app" class="btn btn-primary mt-8">Ouvrir mon desk</a>
     </div>
-    <div data-reveal class="card shadow-soft p-6">
-      <div class="grid grid-cols-2 gap-4">
+    <div class="card p-6" data-reveal>
+      <div class="grid grid-cols-2 gap-3">
         <div class="rounded-xl bg-surface2 border border-line p-4"><p class="text-[10px] uppercase text-faint">Sharpe</p><p class="mono text-2xl font-bold mt-1">1,84</p></div>
         <div class="rounded-xl bg-surface2 border border-line p-4"><p class="text-[10px] uppercase text-faint">Volatilité</p><p class="mono text-2xl font-bold mt-1">42,1%</p></div>
-        <div class="rounded-xl bg-surface2 border border-line p-4"><p class="text-[10px] uppercase text-faint">Max Drawdown</p><p class="mono text-2xl font-bold mt-1 text-down">-31,7%</p></div>
-        <div class="rounded-xl bg-surface2 border border-line p-4"><p class="text-[10px] uppercase text-faint">VaR 95%</p><p class="mono text-2xl font-bold mt-1 text-down">-6,2%</p></div>
+        <div class="rounded-xl bg-surface2 border border-line p-4"><p class="text-[10px] uppercase text-faint">Max Drawdown</p><p class="mono text-2xl font-bold mt-1 neg">-31,7%</p></div>
+        <div class="rounded-xl bg-surface2 border border-line p-4"><p class="text-[10px] uppercase text-faint">VaR 95%</p><p class="mono text-2xl font-bold mt-1 neg">-6,2%</p></div>
       </div>
     </div>
   </div>
@@ -272,82 +270,59 @@ tailwind.config = {
 
 <!-- ════ TARIFS ════ -->
 <section id="pricing" class="max-w-container mx-auto px-5 py-20">
-  <div data-reveal class="text-center max-w-2xl mx-auto">
-    <h2 class="text-3xl md:text-4xl font-bold tracking-tight">Un tarif clair, sans surprise</h2>
+  <div class="text-center max-w-2xl mx-auto" data-reveal>
+    <h2 class="text-3xl md:text-5xl font-extrabold tracking-tight">Un tarif clair, sans surprise</h2>
     <p class="mt-4 text-muted text-lg">Commencez gratuitement. Évoluez quand vous êtes prêt.</p>
   </div>
   <div class="grid md:grid-cols-3 gap-5 mt-12 items-stretch">
-    <!-- Découverte -->
-    <div data-reveal class="card p-7 flex flex-col">
-      <h3 class="font-semibold text-lg">Découverte</h3>
-      <p class="text-muted text-sm mt-1">Pour démarrer et explorer.</p>
+    <div class="card p-7 flex flex-col" data-reveal>
+      <h3 class="font-semibold text-lg">Découverte</h3><p class="text-muted text-sm mt-1">Pour démarrer.</p>
       <p class="mt-5 mono text-4xl font-bold">0€<span class="text-base text-muted font-normal">/mois</span></p>
       <ul class="mt-6 space-y-2.5 text-sm text-muted flex-1">
-        <li class="flex gap-2.5"><span class="text-up">✓</span> 1 portefeuille, suivi temps réel</li>
+        <li class="flex gap-2.5"><span class="text-up">✓</span> 1 portefeuille, temps réel</li>
         <li class="flex gap-2.5"><span class="text-up">✓</span> Marché, watchlist & alertes</li>
-        <li class="flex gap-2.5"><span class="text-up">✓</span> Copilote IA (quota découverte)</li>
-      </ul>
+        <li class="flex gap-2.5"><span class="text-up">✓</span> Copilote IA (quota découverte)</li></ul>
       <a href="/app" class="btn btn-ghost justify-center mt-7">Créer mon compte</a>
     </div>
-    <!-- Pro (mis en avant) -->
-    <div data-reveal class="card p-7 flex flex-col relative ring-1 ring-brand/40" style="box-shadow:0 12px 50px -16px rgba(91,124,250,.5)">
+    <div class="card p-7 flex flex-col relative ring-1 ring-brand/40" style="box-shadow:0 16px 60px -20px rgba(91,124,250,.55)" data-reveal>
       <span class="absolute -top-3 left-1/2 -translate-x-1/2 chip bg-brand text-white border-brand px-3 py-1 text-xs font-semibold">Le plus populaire</span>
-      <h3 class="font-semibold text-lg">Pro</h3>
-      <p class="text-muted text-sm mt-1">Pour l'investisseur sérieux.</p>
+      <h3 class="font-semibold text-lg">Pro</h3><p class="text-muted text-sm mt-1">Pour l'investisseur sérieux.</p>
       <p class="mt-5 mono text-4xl font-bold">29€<span class="text-base text-muted font-normal">/mois</span></p>
       <ul class="mt-6 space-y-2.5 text-sm text-muted flex-1">
         <li class="flex gap-2.5"><span class="text-up">✓</span> Portefeuilles illimités</li>
-        <li class="flex gap-2.5"><span class="text-up">✓</span> 5 agents IA + multi-modèles</li>
+        <li class="flex gap-2.5"><span class="text-up">✓</span> 6 agents IA + multi-modèles</li>
         <li class="flex gap-2.5"><span class="text-up">✓</span> Analytique avancée (Sharpe, VaR…)</li>
         <li class="flex gap-2.5"><span class="text-up">✓</span> Wallets DEX & comptes CEX</li>
-        <li class="flex gap-2.5"><span class="text-up">✓</span> Rapports & journal de trading IA</li>
-      </ul>
+        <li class="flex gap-2.5"><span class="text-up">✓</span> Journal de trading IA</li></ul>
       <a href="/app" class="btn btn-primary justify-center mt-7">Essayer 14 jours</a>
     </div>
-    <!-- Institutionnel -->
-    <div data-reveal class="card p-7 flex flex-col">
-      <h3 class="font-semibold text-lg">Institutionnel</h3>
-      <p class="text-muted text-sm mt-1">Family offices & équipes.</p>
+    <div class="card p-7 flex flex-col" data-reveal>
+      <h3 class="font-semibold text-lg">Institutionnel</h3><p class="text-muted text-sm mt-1">Family offices & équipes.</p>
       <p class="mt-5 mono text-4xl font-bold">Sur devis</p>
       <ul class="mt-6 space-y-2.5 text-sm text-muted flex-1">
         <li class="flex gap-2.5"><span class="text-up">✓</span> Multi-utilisateurs & rôles</li>
         <li class="flex gap-2.5"><span class="text-up">✓</span> Clés API IA dédiées</li>
-        <li class="flex gap-2.5"><span class="text-up">✓</span> Support prioritaire & onboarding</li>
-      </ul>
+        <li class="flex gap-2.5"><span class="text-up">✓</span> Support prioritaire & onboarding</li></ul>
       <a href="/app" class="btn btn-ghost justify-center mt-7">Nous contacter</a>
-    </div>
-  </div>
-</section>
-
-<!-- ════ TÉMOIGNAGE ════ -->
-<section class="max-w-container mx-auto px-5 py-12">
-  <div data-reveal class="card p-8 md:p-10 text-center max-w-3xl mx-auto">
-    <p class="text-xl md:text-2xl font-medium leading-relaxed">« Pour la première fois, je vois <span class="grad-text">l'intégralité de mon patrimoine</span> au même endroit, et le copilote me dit où se cache le risque. C'est devenu mon premier réflexe du matin. »</p>
-    <div class="mt-6 flex items-center justify-center gap-3">
-      <span class="grid place-items-center h-10 w-10 rounded-full bg-brand/20 text-brand font-bold">A.M</span>
-      <div class="text-left"><p class="font-semibold text-sm">Investisseur particulier</p><p class="text-muted text-xs">Portefeuille multi-actifs · client Pro</p></div>
     </div>
   </div>
 </section>
 
 <!-- ════ FAQ ════ -->
 <section id="faq" class="max-w-container mx-auto px-5 py-20">
-  <div data-reveal class="text-center max-w-2xl mx-auto mb-10">
-    <h2 class="text-3xl md:text-4xl font-bold tracking-tight">Questions fréquentes</h2>
-  </div>
+  <div class="text-center max-w-2xl mx-auto mb-10" data-reveal><h2 class="text-3xl md:text-4xl font-bold tracking-tight">Questions fréquentes</h2></div>
   <div class="max-w-3xl mx-auto divide-y divide-line" x-data="{open:0}">
     <template x-for="(f,i) in [
-      {q:'HR5 Invest peut-il accéder à mes fonds ?', a:'Non, jamais. La plateforme fonctionne exclusivement en lecture seule. Nous ne demandons ni ne stockons aucune phrase de récupération ou clé privée, et nous ne pouvons passer aucun ordre à votre place.'},
-      {q:'Quels actifs sont pris en charge ?', a:'Cryptomonnaies, actions, ETF, ainsi que vos wallets DEX (via adresse publique) et comptes CEX en lecture seule. Le tout consolidé dans une seule vue.'},
-      {q:'Quelles IA sont utilisées ?', a:'Un routeur multi-modèles sélectionne automatiquement Claude, GPT ou Gemini selon la tâche (recherche, analyse, synthèse) pour le meilleur rapport qualité/vitesse.'},
-      {q:'Les données sont-elles en temps réel ?', a:'Oui. Prix, positions, P&L et alertes se mettent à jour en continu, avec un cache intelligent pour des temps de réponse optimaux.'},
-      {q:'Puis-je commencer gratuitement ?', a:'Oui, le plan Découverte est gratuit et sans carte bancaire. Vous pouvez passer au plan Pro à tout moment.'},
+      {q:'HR5 Invest peut-il accéder à mes fonds ?', a:'Non, jamais. La plateforme fonctionne en lecture seule. Aucune phrase de récupération ni clé privée n\'est demandée ou stockée, et aucun ordre ne peut être passé à votre place.'},
+      {q:'Quels actifs sont pris en charge ?', a:'Cryptomonnaies, actions, ETF, ainsi que vos wallets DEX (adresse publique) et comptes CEX en lecture seule, consolidés en une seule vue.'},
+      {q:'Quelles IA sont utilisées ?', a:'Un routeur multi-modèles choisit automatiquement Claude, GPT ou Gemini selon la tâche, pour le meilleur rapport qualité/vitesse.'},
+      {q:'Les données sont-elles en temps réel ?', a:'Oui : prix, positions, P&L et alertes se mettent à jour en continu, avec un cache intelligent.'},
+      {q:'Puis-je commencer gratuitement ?', a:'Oui, le plan Découverte est gratuit et sans carte bancaire.'},
     ]" :key="i">
       <div class="py-1">
         <button class="w-full flex items-center justify-between text-left py-4 gap-4" @click="open = open===i ? -1 : i" :aria-expanded="open===i">
           <span class="font-medium" x-text="f.q"></span>
-          <svg class="shrink-0 transition-transform" :class="open===i && 'rotate-45'" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
-        </button>
+          <svg class="shrink-0 transition-transform" :class="open===i && 'rotate-45'" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg></button>
         <div x-show="open===i" x-collapse><p class="pb-5 text-muted text-sm leading-relaxed" x-text="f.a"></p></div>
       </div>
     </template>
@@ -356,13 +331,13 @@ tailwind.config = {
 
 <!-- ════ CTA FINAL ════ -->
 <section class="max-w-container mx-auto px-5 py-16">
-  <div data-reveal class="card shadow-soft p-10 md:p-14 text-center relative overflow-hidden">
-    <div class="absolute -top-24 left-1/2 -translate-x-1/2 h-64 w-[36rem] rounded-full blur-3xl" style="background:rgba(91,124,250,.18)"></div>
+  <div class="card p-10 md:p-16 text-center relative overflow-hidden" data-reveal>
+    <div class="absolute -top-24 left-1/2 -translate-x-1/2 h-64 w-[40rem] rounded-full blur-3xl" style="background:rgba(91,124,250,.20)"></div>
     <div class="relative">
-      <h2 class="text-3xl md:text-5xl font-extrabold tracking-tight">Reprenez le contrôle de vos investissements</h2>
-      <p class="mt-4 text-muted text-lg max-w-xl mx-auto">Rejoignez HR5 Invest et transformez la complexité de vos marchés en décisions claires.</p>
+      <h2 class="text-3xl md:text-5xl font-black tracking-tight">Reprenez le contrôle de vos investissements</h2>
+      <p class="mt-4 text-muted text-lg max-w-xl mx-auto">Transformez la complexité de vos marchés en décisions claires.</p>
       <div class="mt-8 flex flex-wrap items-center justify-center gap-3">
-        <a href="/app" class="btn btn-primary text-base">Commencer gratuitement</a>
+        <a href="/app" class="btn btn-primary text-base">Ouvrir mon desk</a>
         <a href="#pricing" class="btn btn-ghost text-base">Voir les tarifs</a>
       </div>
     </div>
@@ -373,33 +348,21 @@ tailwind.config = {
 <!-- ════ FOOTER ════ -->
 <footer class="border-t border-line">
   <div class="max-w-container mx-auto px-5 py-12 grid md:grid-cols-4 gap-8 text-sm">
-    <div class="md:col-span-1">
-      <div class="flex items-center gap-2.5 mb-3">
-        <span class="grid place-items-center h-8 w-8 rounded-lg text-ink font-extrabold text-xs" style="background:linear-gradient(135deg,#5B7CFA,#46B6E6)">H5</span>
-        <span class="font-bold">HR5 Invest</span>
-      </div>
-      <p class="text-faint leading-relaxed">Le copilote d'investissement tout-en-un, augmenté par l'IA.</p>
+    <div>
+      <div class="flex items-center gap-2.5 mb-3"><span class="grid place-items-center h-8 w-8 rounded-lg text-ink font-black text-xs" style="background:linear-gradient(135deg,#5B7CFA,#46B6E6)">H5</span><span class="font-bold">HR5 Invest</span></div>
+      <p class="text-faint leading-relaxed">Le desk d'investissement personnel, augmenté par l'IA.</p>
     </div>
-    <div><p class="font-semibold mb-3">Produit</p><ul class="space-y-2 text-muted">
-      <li><a href="#features" class="hover:text-txt">Plateforme</a></li><li><a href="#copilot" class="hover:text-txt">Copilote IA</a></li><li><a href="#pricing" class="hover:text-txt">Tarifs</a></li></ul></div>
-    <div><p class="font-semibold mb-3">Ressources</p><ul class="space-y-2 text-muted">
-      <li><a href="#how" class="hover:text-txt">Comment ça marche</a></li><li><a href="#faq" class="hover:text-txt">FAQ</a></li><li><a href="/app" class="hover:text-txt">Se connecter</a></li></ul></div>
-    <div><p class="font-semibold mb-3">Légal</p><ul class="space-y-2 text-muted">
-      <li><a href="#" class="hover:text-txt">Confidentialité</a></li><li><a href="#" class="hover:text-txt">Conditions</a></li></ul>
-      <p class="text-faint text-xs mt-4 leading-relaxed">Outil d'aide à la décision. Aucun conseil financier. Les performances passées ne préjugent pas des performances futures.</p>
-    </div>
+    <div><p class="font-semibold mb-3">Produit</p><ul class="space-y-2 text-muted"><li><a href="#product" class="hover:text-txt">Le desk</a></li><li><a href="#copilot" class="hover:text-txt">Copilote IA</a></li><li><a href="#pricing" class="hover:text-txt">Tarifs</a></li></ul></div>
+    <div><p class="font-semibold mb-3">Ressources</p><ul class="space-y-2 text-muted"><li><a href="#features" class="hover:text-txt">Analytique</a></li><li><a href="#faq" class="hover:text-txt">FAQ</a></li><li><a href="/app" class="hover:text-txt">Se connecter</a></li></ul></div>
+    <div><p class="font-semibold mb-3">Légal</p><ul class="space-y-2 text-muted"><li><a href="#" class="hover:text-txt">Confidentialité</a></li><li><a href="#" class="hover:text-txt">Conditions</a></li></ul>
+      <p class="text-faint text-xs mt-4 leading-relaxed">Outil d'aide à la décision. Aucun conseil financier.</p></div>
   </div>
-  <div class="border-t border-line">
-    <div class="max-w-container mx-auto px-5 py-5 text-xs text-faint flex flex-wrap items-center justify-between gap-3">
-      <span>© 2026 HR5 Invest. Tous droits réservés.</span>
-      <span>Conçu pour les investisseurs exigeants.</span>
-    </div>
-  </div>
+  <div class="border-t border-line"><div class="max-w-container mx-auto px-5 py-5 text-xs text-faint flex flex-wrap items-center justify-between gap-3">
+    <span>© 2026 HR5 Invest. Tous droits réservés.</span><span>Conçu pour les investisseurs exigeants.</span></div></div>
 </footer>
 
 <script>
-  // Révélation au scroll (IntersectionObserver) — performant, accessible
-  const io = new IntersectionObserver((es)=>es.forEach(e=>{ if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target);} }), {threshold:.12});
+  const io = new IntersectionObserver((es)=>es.forEach(e=>{ if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target);} }), {threshold:.1});
   document.querySelectorAll('[data-reveal]').forEach(el=>io.observe(el));
 </script>
 </body>
