@@ -118,8 +118,8 @@ th{font-size:9.5px;color:var(--mu);background:rgba(255,255,255,.012);}
   50%    {box-shadow:inset 0 0 0 1px rgba(6,182,212,.42), inset 0 0 24px rgba(59,130,246,.13), inset 0 0 60px rgba(6,182,212,.07);}
 }
 /* heatmap */
-.hm-tile{position:relative;overflow:hidden;border-radius:4px;display:flex;flex-direction:column;justify-content:center;align-items:center;color:#fff;cursor:pointer;transition:transform .12s,box-shadow .12s;border:1px solid rgba(0,0,0,.25);}
-.hm-tile:hover{transform:scale(1.04);box-shadow:0 0 0 1px var(--ac),0 6px 20px rgba(0,0,0,.5);z-index:2;}
+.hm-tile{position:relative;overflow:hidden;border-radius:6px;display:flex;flex-direction:column;justify-content:center;align-items:center;color:#EAECF2;cursor:pointer;transition:transform .12s,box-shadow .12s,border-color .12s;border:1px solid rgba(255,255,255,.05);}
+.hm-tile:hover{transform:translateY(-1px);box-shadow:0 8px 22px rgba(0,0,0,.55);border-color:rgba(94,124,226,.5);z-index:2;}
 /* ═══════════ PRO THEME v2 — profondeur, couleur, vie ═══════════ */
 body{
   background:
@@ -1492,7 +1492,7 @@ tbody tr:hover td{background:rgba(94,124,226,.05);}
       <div style="font-size:11px;color:var(--mu);margin-bottom:8px;">Même adresse que votre wallet Ethereum/MetaMask (0x...) — sur le réseau Base</div>
       <input x-model="walletForms.base.address" class="inp" placeholder="0x930a50c3..." style="font-size:11px;font-family:monospace;margin-bottom:8px;">
       <div style="display:flex;gap:6px;">
-        <button @click="fetchWallet('base')" class="btn btn-primary btn-sm" style="flex:1;justify-content:center;background:linear-gradient(135deg,#0052FF,#4C8DFF);" :disabled="walletLoading.base||!walletForms.base.address">
+        <button @click="fetchWallet('base')" class="btn btn-primary btn-sm" style="flex:1;justify-content:center;" :disabled="walletLoading.base||!walletForms.base.address">
           <span x-show="walletLoading.base" class="spin"></span>
           <span x-text="walletLoading.base?'Lecture Base chain...':'Voir balances Base'"></span>
         </button>
@@ -1581,7 +1581,7 @@ tbody tr:hover td{background:rgba(94,124,226,.05);}
         <input x-model="walletForms.exchange.api_secret" type="password" class="inp" placeholder="API Secret" style="font-size:11px;font-family:monospace;">
         <input x-model="walletForms.exchange.api_password" type="password" class="inp" placeholder="Passphrase (OKX, KuCoin, Coinbase…) — sinon vide" style="font-size:11px;font-family:monospace;">
       </div>
-      <button @click="fetchWallet('exchange')" class="btn btn-primary btn-sm" style="width:100%;justify-content:center;background:linear-gradient(135deg,#10B981,#06B6D4);" :disabled="walletLoading.exchange||!walletForms.exchange.api_key">
+      <button @click="fetchWallet('exchange')" class="btn btn-primary btn-sm" style="width:100%;justify-content:center;" :disabled="walletLoading.exchange||!walletForms.exchange.api_key">
         <span x-show="walletLoading.exchange" class="spin"></span>
         <span x-text="walletLoading.exchange?'Connexion...':'Voir mes balances'"></span>
       </button>
@@ -1615,7 +1615,7 @@ tbody tr:hover td{background:rgba(94,124,226,.05);}
         <option value="avalanche">Avalanche</option><option value="fantom">Fantom</option>
       </select>
       <input x-model="walletForms.evm.address" class="inp" placeholder="0x..." style="font-size:11px;font-family:monospace;margin-bottom:8px;">
-      <button @click="fetchWallet('evm')" class="btn btn-primary btn-sm" style="width:100%;justify-content:center;background:linear-gradient(135deg,#8B5CF6,#3B82F6);" :disabled="walletLoading.evm||!walletForms.evm.address">
+      <button @click="fetchWallet('evm')" class="btn btn-primary btn-sm" style="width:100%;justify-content:center;" :disabled="walletLoading.evm||!walletForms.evm.address">
         <span x-show="walletLoading.evm" class="spin"></span>
         <span x-text="walletLoading.evm?'Lecture…':'Voir balances'"></span>
       </button>
@@ -3107,14 +3107,12 @@ function app() { return {
   async loadOpps(){try{const d=await this.api('GET','/api/v1/ai/opportunities');this.opps=d?.opportunities||[];}catch{}},
 
   hmColor(pct){
-    const v=Number(pct)||0; const a=Math.min(Math.abs(v)/8,1); // saturation jusqu'à ±8%
-    if(v>=0){ // vert
-      const r=Math.round(63-(63-21)*a), g=Math.round(63+(128-63)*a), b=Math.round(63-(63-61)*a);
-      return `rgb(${r},${g},${b})`;
-    } else { // rouge
-      const r=Math.round(63+(180-63)*a), g=Math.round(63-(63-30)*a), b=Math.round(63-(63-30)*a);
-      return `rgb(${r},${g},${b})`;
-    }
+    // Palette sobre : base graphite sombre -> vert/rouge feutrés (non néon).
+    const v=Number(pct)||0; const a=Math.min(Math.abs(v)/8,1);
+    const b0=[20,24,31]; // base proche des surfaces
+    const tgt = v>=0 ? [34,120,80] : [150,58,64]; // vert / rouge institutionnels
+    const c = b0.map((s,i)=>Math.round(s+(tgt[i]-s)*a));
+    return `rgb(${c[0]},${c[1]},${c[2]})`;
   },
   async loadHeatmap(){
     this.heatmapLoading=true;

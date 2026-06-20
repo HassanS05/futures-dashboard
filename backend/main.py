@@ -621,7 +621,10 @@ async def fetch_etf_data(symbols: List[str]) -> dict:
         return _cache[cache_key]["data"]
     if not HAS_YFINANCE:
         return {}
-    try:
+
+    def _sync_fetch() -> dict:
+        # yfinance est SYNCHRONE et bloquant : exécuté dans un thread pour ne
+        # pas geler la boucle asyncio (sinon toute l'app se fige).
         result = {}
         import yfinance as yf
         tickers = yf.Tickers(" ".join(symbols))
@@ -631,7 +634,6 @@ async def fetch_etf_data(symbols: List[str]) -> dict:
                 if not t:
                     continue
                 hist = t.history(period="5d")
-                info = t.fast_info
                 if hist.empty:
                     continue
                 last = float(hist["Close"].iloc[-1])
@@ -650,8 +652,17 @@ async def fetch_etf_data(symbols: List[str]) -> dict:
                 }
             except Exception as e:
                 logger.warning(f"yfinance {sym}: {e}")
-        _cache[cache_key] = {"data": result, "ts": time.time()}
         return result
+
+    try:
+        # Timeout global : si Yahoo est lent/rate-limité, on rend la main vite.
+        result = await asyncio.wait_for(asyncio.to_thread(_sync_fetch), timeout=12)
+        if result:
+            _cache[cache_key] = {"data": result, "ts": time.time()}
+        return result
+    except asyncio.TimeoutError:
+        logger.warning("yfinance ETF: timeout — on renvoie sans prix (la liste s'affiche quand même)")
+        return _cache.get(cache_key, {}).get("data", {})
     except Exception as e:
         logger.error(f"yfinance batch error: {e}")
         return {}
