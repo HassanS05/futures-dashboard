@@ -3633,6 +3633,7 @@ async def admin_users(user=Depends(get_current_user)):
 # ══════════════════════════════════════════════════════════════
 #  LANDING PUBLIQUE (site marketing) — routes explicites avant le mount
 # ══════════════════════════════════════════════════════════════
+@app.get("/", include_in_schema=False)
 @app.get("/welcome", include_in_schema=False)
 @app.get("/landing", include_in_schema=False)
 async def landing_page():
@@ -3640,6 +3641,14 @@ async def landing_page():
     if f.exists():
         return FileResponse(str(f))
     raise HTTPException(404, "landing.html introuvable")
+
+@app.get("/app", include_in_schema=False)
+async def app_spa():
+    """Le terminal (SPA) — login puis Institutional Desk."""
+    f = STATIC_DIR / "index.html"
+    if f.exists():
+        return FileResponse(str(f))
+    raise HTTPException(404, "index.html introuvable")
 
 # ══════════════════════════════════════════════════════════════
 #  STATIC FRONTEND
