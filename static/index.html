@@ -187,6 +187,26 @@ th{background:linear-gradient(180deg,rgba(59,130,246,.05),transparent);}
 /* ═══ Survol 3D subtil sur les KPIs ═══ */
 .kpi-card{transition:transform .2s ease,box-shadow .2s ease,border-color .2s ease;}
 .kpi-card:hover{transform:perspective(800px) translateY(-2px) rotateX(3deg);box-shadow:0 16px 36px rgba(0,0,0,.45),0 0 0 1px rgba(59,130,246,.20);border-color:#2a4d78;}
+/* ═══ HR5 — Premium polish (additif, non destructif) ═══ */
+@keyframes aiPulse{0%,100%{opacity:.55;}50%{opacity:1;}}
+/* Entrée douce des cartes + hover lift haut de gamme */
+.card{animation:fadeUp .45s cubic-bezier(.22,.61,.36,1) both;will-change:transform;}
+.card:hover{transform:translateY(-2px);box-shadow:0 14px 30px -12px rgba(0,0,0,.6),0 0 0 1px rgba(59,130,246,.18);}
+/* Lignes de tableau plus vivantes */
+tr{transition:background .15s ease;}
+tr:hover td{box-shadow:inset 2px 0 0 var(--ac);}
+/* Boutons : feedback tactile premium */
+.btn{transition:all .18s cubic-bezier(.22,.61,.36,1);}
+.btn:active{transform:scale(.96);}
+.btn-primary:hover,.btn-grad:hover{transform:translateY(-1px);}
+/* Items de nav : glissement subtil */
+.nav-item{transition:all .18s cubic-bezier(.22,.61,.36,1);}
+.nav-item:hover{transform:translateX(2px);}
+/* Ticker : léger relief sur survol d'un actif */
+.ticker-item{transition:opacity .15s;}
+.ticker-item:hover{opacity:1;}
+/* Respecte la préférence d'accessibilité */
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;}}
 </style>
 </head>
 <body x-data="app()" x-init="init()">
@@ -243,6 +263,15 @@ th{background:linear-gradient(180deg,rgba(59,130,246,.05),transparent);}
     </div>
   </div>
   <div style="padding:0 12px;border-left:1px solid var(--bd);display:flex;align-items:center;gap:12px;">
+    <div x-data="{ai:null}" x-init="fetch('/api/v1/ai/status').then(r=>r.json()).then(d=>ai=d).catch(()=>{})"
+         style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--mu);"
+         :title="ai ? ('Moteur IA multi-modèles · '+Object.entries(ai.providers).filter(([k,v])=>v.available).map(([k,v])=>k+' ('+v.model+')').join(', ')) : 'Moteur IA'">
+      <span style="width:6px;height:6px;border-radius:50%;display:inline-block;animation:aiPulse 2s ease-in-out infinite;"
+            :style="`background:${ai&&ai.enabled?'var(--gr)':'var(--mu)'};box-shadow:0 0 7px ${ai&&ai.enabled?'var(--gr)':'transparent'}`"></span>
+      <span>IA</span>
+      <span class="mono" style="color:var(--tx);"
+            x-text="ai ? (Object.entries(ai.providers).filter(([k,v])=>v.available).map(([k])=>({anthropic:'Claude',openai:'GPT',gemini:'Gemini'})[k]).join('·')||'—') : '…'"></span>
+    </div>
     <span style="font-size:11px;color:var(--mu);">Fear & Greed: <span :style="`color:${fg.value>60?'var(--gr)':fg.value<40?'var(--rd)':'var(--yw)'}`" x-text="fg.value||'--'"></span></span>
     <span style="font-size:11px;color:var(--mu);">BTC Dom: <span style="color:var(--cy);" x-text="(gm.btc_dominance||0).toFixed(1)+'%'"></span></span>
     <span style="font-size:11px;color:var(--mu);">MCap: <span style="color:var(--tx);" x-text="fmtLarge(gm.total_market_cap||0)"></span></span>
