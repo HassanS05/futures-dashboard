@@ -207,6 +207,65 @@ tr:hover td{box-shadow:inset 2px 0 0 var(--ac);}
 .ticker-item:hover{opacity:1;}
 /* Respecte la préférence d'accessibilité */
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;}}
+
+/* ════════════════════════════════════════════════════════════════
+   HR5 — THÈME "OBSIDIAN VIOLET" 2026 (refonte palette, surcouche finale)
+   Passe du bleu/cyan à un violet-indigo + menthe sur graphite quasi-noir.
+   100% additif : redéfinit les variables et surcharge les surfaces clés.
+   ════════════════════════════════════════════════════════════════ */
+:root{
+  --bg:#070710; --s1:#0E0E1A; --s2:#141523; --s3:#1B1C2E;
+  --bd:#242544; --bd2:#30315A;
+  --ac:#7C6BFF; --cy:#34E0C8; --pu:#A78BFA;
+  --tx:#ECEDF7; --mu:#6B6E92; --mu2:#9A9DC4;
+  --gac:linear-gradient(135deg,#7C6BFF 0%,#34E0C8 100%);
+}
+/* Fond + halos ambiants violet/menthe */
+body{
+  background:
+    radial-gradient(1100px 540px at 8% -10%, rgba(124,107,255,.16), transparent 56%),
+    radial-gradient(900px 500px at 104% -6%, rgba(52,224,200,.10), transparent 52%),
+    radial-gradient(760px 760px at 50% 122%, rgba(167,139,250,.07), transparent 60%),
+    var(--bg);
+  background-attachment:fixed;
+}
+/* Structure */
+.sidebar{background:linear-gradient(180deg,#10101F 0%,#0C0C18 55%,#08080F 100%);border-right:1px solid #20213C;}
+.topbar{background:linear-gradient(90deg,#10101F,#0C0C18);border-bottom:1px solid #20213C;backdrop-filter:blur(8px);}
+/* Cartes graphite + verre */
+.card{background:linear-gradient(162deg,#101020 0%,#0C0C16 100%);border:1px solid #222244;border-radius:13px;box-shadow:0 1px 0 rgba(255,255,255,.02) inset,0 10px 30px -16px rgba(0,0,0,.8);}
+.card:hover{border-color:#3a3a6a;box-shadow:0 16px 40px -18px rgba(0,0,0,.85),0 0 0 1px rgba(124,107,255,.22);}
+.card-sm{background:linear-gradient(160deg,#16162a,#101020);border-color:#222244;}
+.glass{background:rgba(16,16,32,.82);border:1px solid #222244;backdrop-filter:blur(22px);}
+/* KPI premium */
+.kpi-card{background:linear-gradient(155deg,#181830 0%,#0E0E1B 100%);border:1px solid #2a2a52;box-shadow:0 6px 22px -10px rgba(0,0,0,.7);}
+.kpi-card::after{height:3px;background:var(--gac);}
+.kpi-card:hover{box-shadow:0 18px 40px -16px rgba(0,0,0,.8),0 0 0 1px rgba(124,107,255,.30);border-color:#3a3a6a;}
+.kpi-label{color:var(--mu2);}
+/* Navigation */
+.nav-item:hover{background:rgba(124,107,255,.10);}
+.nav-item.active{background:linear-gradient(90deg,rgba(124,107,255,.22),rgba(52,224,200,.05));color:#EDE9FF;}
+.nav-item.active::before{background:linear-gradient(180deg,#7C6BFF,#34E0C8);box-shadow:0 0 10px rgba(124,107,255,.7);}
+.nav-section{color:#5a5d86;}
+/* Boutons */
+.btn-primary{background:#7C6BFF;box-shadow:0 2px 14px rgba(124,107,255,.35);}
+.btn-primary:hover{background:#6B57FF;box-shadow:0 6px 22px rgba(124,107,255,.5);}
+.btn-grad{background:var(--gac);box-shadow:0 2px 14px rgba(52,224,200,.25);}
+/* Accents divers */
+.gradient-text{background:var(--gac);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;filter:drop-shadow(0 0 12px rgba(124,107,255,.35));}
+.score-fill{background:var(--gac);}
+.chat-user{background:#7C6BFF;box-shadow:0 2px 10px rgba(124,107,255,.4);}
+th{background:linear-gradient(180deg,rgba(124,107,255,.06),transparent);}
+tbody tr:hover td{background:rgba(124,107,255,.07);}
+tr:hover td{box-shadow:inset 2px 0 0 #7C6BFF;}
+.inp:focus{border-color:#7C6BFF;box-shadow:0 0 0 3px rgba(124,107,255,.16);}
+::selection{background:rgba(124,107,255,.34);}
+::-webkit-scrollbar-thumb{background:linear-gradient(180deg,#2a2a52,#34355e);}
+.app-frame{box-shadow:inset 0 0 0 1px rgba(124,107,255,.26),inset 0 0 20px rgba(124,107,255,.10),inset 0 0 52px rgba(52,224,200,.05);}
+@keyframes framePulse{
+  0%,100%{box-shadow:inset 0 0 0 1px rgba(124,107,255,.20),inset 0 0 16px rgba(124,107,255,.08),inset 0 0 46px rgba(52,224,200,.04);}
+  50%    {box-shadow:inset 0 0 0 1px rgba(52,224,200,.40),inset 0 0 26px rgba(124,107,255,.13),inset 0 0 64px rgba(52,224,200,.07);}
+}
 </style>
 </head>
 <body x-data="app()" x-init="init()">
