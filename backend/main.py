@@ -150,10 +150,14 @@ async def ai_complete(prompt: str, *, system: str = "", max_tokens: int = 2000,
     last_err = None
     for provider in order:
         try:
-            out = await _complete_one(provider, prompt, system, max_tokens)
+            out = await asyncio.wait_for(
+                _complete_one(provider, prompt, system, max_tokens), timeout=35)
             if out and out.strip():
                 return out
             logger.warning(f"ai_complete: {provider} a renvoyé vide, fallback…")
+        except asyncio.TimeoutError:
+            last_err = f"{provider}: délai dépassé"
+            logger.warning(f"ai_complete: {provider} timeout, fallback…")
         except Exception as e:
             last_err = e
             logger.warning(f"ai_complete: {provider} a échoué ({e}); fallback…")
@@ -1006,37 +1010,28 @@ Règles de communication :
 Date : {datetime.now().strftime('%d/%m/%Y %H:%M')}
 {f'Contexte additionnel : {context}' if context else ''}"""
 
-    async def _stream_one(provider: str):
-        """Yield text pieces from a single provider."""
+    async def _complete_msgs(provider: str) -> str:
+        """Full (non-streaming) completion for one provider — easier to bound
+        with a timeout so a hanging model can't freeze the chat forever."""
         if provider == "anthropic":
             client = anthropic_sdk.AsyncAnthropic(api_key=ANTHROPIC_API_KEY)
-            async with client.messages.stream(
-                model=ANTHROPIC_MODEL, max_tokens=3000, system=system, messages=messages
-            ) as stream:
-                async for text in stream.text_stream:
-                    if text:
-                        yield text
-        elif provider == "openai":
+            msg = await client.messages.create(
+                model=ANTHROPIC_MODEL, max_tokens=3000, system=system, messages=messages)
+            return "".join(b.text for b in msg.content if getattr(b, "type", "") == "text")
+        if provider == "openai":
             client = AsyncOpenAI(api_key=OPENAI_API_KEY)
-            stream = await client.chat.completions.create(
+            resp = await client.chat.completions.create(
                 model=OPENAI_MODEL,
-                messages=[{"role": "system", "content": system}] + messages,
-                max_tokens=3000, stream=True)
-            async for chunk in stream:
-                piece = chunk.choices[0].delta.content
-                if piece:
-                    yield piece
-        elif provider == "gemini":
-            genai_sdk.configure(api_key=GEMINI_API_KEY)
-            gm = genai_sdk.GenerativeModel(GEMINI_MODEL, system_instruction=system or None)
-            history = [{"role": "model" if m["role"] == "assistant" else "user",
-                        "parts": [m["content"]]} for m in messages]
-            stream = await gm.generate_content_async(history, stream=True)
-            async for chunk in stream:
-                if getattr(chunk, "text", ""):
-                    yield chunk.text
+                messages=[{"role": "system", "content": system}] + messages, max_tokens=3000)
+            return resp.choices[0].message.content or ""
+        # gemini
+        genai_sdk.configure(api_key=GEMINI_API_KEY)
+        gm = genai_sdk.GenerativeModel(GEMINI_MODEL, system_instruction=system or None)
+        history = [{"role": "model" if m["role"] == "assistant" else "user",
+                    "parts": [m["content"]]} for m in messages]
+        resp = await gm.generate_content_async(history)
+        return resp.text or ""
 
-    # Ordered providers for chat, keeping only those configured.
     order = [p for p in dict.fromkeys(AI_TASK_ROUTING.get("chat", AI_TASK_ROUTING["default"]))
              if _provider_available(p)]
     if not order:
@@ -1046,24 +1041,24 @@ Date : {datetime.now().strftime('%d/%m/%Y %H:%M')}
 
     last_err = None
     for provider in order:
-        produced = False
         try:
-            async for piece in _stream_one(provider):
-                produced = True
-                yield f"data: {json.dumps({'content': piece})}\n\n"
-            if produced:
+            # Timeout strict : un modèle qui ne répond pas en 30s -> on bascule.
+            text = await asyncio.wait_for(_complete_msgs(provider), timeout=30)
+            if text and text.strip():
+                # Émission en petits morceaux pour garder l'effet "live".
+                for i in range(0, len(text), 48):
+                    yield f"data: {json.dumps({'content': text[i:i+48]})}\n\n"
+                    await asyncio.sleep(0)
                 yield "data: [DONE]\n\n"
                 return
-            # réponse vide -> on tente le provider suivant
             logger.warning(f"AI chat: {provider} a renvoyé une réponse vide, fallback…")
+        except asyncio.TimeoutError:
+            last_err = f"{provider}: délai dépassé (30s)"
+            logger.warning(f"AI chat: {provider} timeout 30s, fallback…")
         except Exception as e:
             last_err = e
             logger.warning(f"AI chat: provider {provider} a échoué ({e}); fallback…")
-            if produced:  # déjà streamé du contenu : on s'arrête là
-                yield "data: [DONE]\n\n"
-                return
-            # sinon on essaie le provider suivant
-    yield f"data: {json.dumps({'content': 'Erreur IA : ' + (str(last_err) if last_err else 'tous les modèles ont renvoyé une réponse vide. Vérifie tes clés/quotas dans .env.')})}\n\n"
+    yield f"data: {json.dumps({'content': 'Erreur IA : ' + (str(last_err) if last_err else 'aucune réponse des modèles. Vérifie tes clés/quotas dans .env.')})}\n\n"
     yield "data: [DONE]\n\n"
 
 async def generate_dca_plan(symbol: str, capital: float, horizon_months: int, risk: str) -> dict:
