@@ -2,7 +2,7 @@
 HR5 Invest — Institutional Investment Desk
 FastAPI + SQLite — Production Grade
 """
-import os, json, time, asyncio, hashlib, secrets, sqlite3, io, csv, hmac
+import os, json, time, asyncio, hashlib, secrets, sqlite3, io, csv, hmac, math
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional, List, AsyncGenerator
@@ -1451,7 +1451,24 @@ async def lifespan(app: FastAPI):
     finally:
         _task.cancel()
 
-app = FastAPI(title="HR5 Invest Institutional API", version="2.0.0", lifespan=lifespan)
+def _json_sanitize(o):
+    """Replace NaN/Infinity (e.g. from yfinance on delisted symbols) with None.
+    Starlette's JSONResponse uses allow_nan=False and crashes otherwise."""
+    if isinstance(o, float):
+        return o if math.isfinite(o) else None
+    if isinstance(o, dict):
+        return {k: _json_sanitize(v) for k, v in o.items()}
+    if isinstance(o, (list, tuple)):
+        return [_json_sanitize(v) for v in o]
+    return o
+
+class SafeJSONResponse(JSONResponse):
+    """Default response class: never let a NaN/Inf break a whole response."""
+    def render(self, content) -> bytes:
+        return super().render(_json_sanitize(content))
+
+app = FastAPI(title="HR5 Invest Institutional API", version="2.0.0",
+              lifespan=lifespan, default_response_class=SafeJSONResponse)
 
 app.add_middleware(CORSMiddleware,
     allow_origins=["*"], allow_credentials=True,
