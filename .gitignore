@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.db
+
+# Env / secrets
+.env
+.env.local
+*.local
+
+# Node / Next
+node_modules/
+.next/
+out/
+next-env.d.ts
+npm-debug.log*
+
+# OS / editor
+.DS_Store
+.vscode/
+.idea/

@@ -1,0 +1,68 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-sans: "Inter", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+}
+
+html,
+body {
+  @apply bg-canvas text-text antialiased;
+}
+
+/* Ambient depth: subtle radial glows behind the canvas. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(60rem 40rem at 15% -10%, rgba(61, 215, 224, 0.07), transparent 60%),
+    radial-gradient(50rem 40rem at 100% 0%, rgba(139, 123, 255, 0.08), transparent 55%);
+  pointer-events: none;
+}
+
+/* Premium thin scrollbars. */
+::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+::-webkit-scrollbar-thumb {
+  background: #20283b;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #2c374f;
+}
+
+@layer components {
+  /* Glassmorphism card */
+  .glass {
+    @apply rounded-2xl border border-border bg-surface/70 shadow-card backdrop-blur-xl;
+  }
+  .glass-2 {
+    @apply rounded-2xl border border-border bg-surface-2/60 backdrop-blur-md;
+  }
+  .stat-num {
+    @apply font-mono tabular-nums tracking-tight;
+  }
+  /* Skeleton shimmer */
+  .skeleton {
+    @apply relative overflow-hidden rounded-md bg-surface-2;
+  }
+  .skeleton::after {
+    content: "";
+    @apply absolute inset-0 -translate-x-full animate-shimmer;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(255, 255, 255, 0.06),
+      transparent
+    );
+  }
+  .gradient-text {
+    @apply bg-accent-grad bg-clip-text text-transparent;
+  }
+}
