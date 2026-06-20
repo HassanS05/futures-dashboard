@@ -2502,10 +2502,11 @@ Réponds UNIQUEMENT en JSON strict (toutes les valeurs texte sur une seule ligne
   "avertissement": "Rappel: les IPO sont volatiles et l'information est limitee avant cotation."
 }}
 
-Base-toi sur tes connaissances du secteur et de la societe. Si l'information est limitee,
-sois prudent et indique-le clairement. Retourne UNIQUEMENT le JSON."""
+SOIS CONCIS (reponse rapide) : synthese en 2 phrases max, 2 points forts, 2 points faibles,
+strategie en 1 phrase. Base-toi sur tes connaissances; si l'info est limitee, sois prudent et
+dis-le. Retourne UNIQUEMENT le JSON."""
     try:
-        text = await ai_complete(prompt, max_tokens=1500, task="research")
+        text = await ai_complete(prompt, max_tokens=900, task="research")
         return _safe_json_loads(text)
     except Exception as e:
         logger.error(f"analyze_ipo error: {e}")

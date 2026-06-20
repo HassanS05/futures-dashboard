@@ -306,6 +306,64 @@ tbody tr:hover td{background:rgba(124,107,255,.07);}
 .modal{background:linear-gradient(160deg,#12122a,#0C0C18);border:1px solid rgba(124,107,255,.22);box-shadow:0 30px 90px rgba(0,0,0,.7),0 0 0 1px rgba(124,107,255,.10);}
 /* Lien actif sidebar : pastille lumineuse renforcée */
 .nav-item.active::before{width:3px;height:20px;}
+
+/* ════════════════════════════════════════════════════════════════
+   HR5 — FINITION INSTITUTIONNELLE (sobre, sérieux, "vrai produit")
+   Calme les néons/animations "jouet" et resserre vers un look Bloomberg.
+   Surcouche finale → prend le dessus sur tout le reste.
+   ════════════════════════════════════════════════════════════════ */
+:root{
+  /* Accent acier maîtrisé (moins flashy que violet/menthe) */
+  --ac:#5E7CE2; --cy:#4A9BC2; --pu:#7C8AC0;
+  --bd:#222730; --bd2:#2C333E;
+  --gac:linear-gradient(135deg,#5E7CE2,#4A9BC2);
+  --tx:#E8EAEF; --mu:#79818E; --mu2:#A4ABB6;
+}
+/* Fond neutre graphite, halos très discrets */
+body{
+  background:
+    radial-gradient(1200px 560px at 12% -12%, rgba(94,124,226,.06), transparent 58%),
+    radial-gradient(900px 480px at 102% -6%, rgba(74,155,194,.04), transparent 52%),
+    #0A0C11;
+  background-attachment:fixed;
+}
+.sidebar{background:linear-gradient(180deg,#0E1117,#0B0E13);border-right:1px solid #1B2029;}
+.topbar{background:#0C0F15;border-bottom:1px solid #1B2029;}
+/* Cartes mates, bordures neutres, coins resserrés, pas de halo */
+.card,.kpi-card{border-radius:9px;}
+.card{background:linear-gradient(180deg,#12151B,#0E1117);border:1px solid #1F242D;box-shadow:0 1px 2px rgba(0,0,0,.4);}
+.card:hover{border-color:#2B323D;transform:none;box-shadow:0 6px 20px -10px rgba(0,0,0,.65);}
+.card-sm{background:#13161C;border:1px solid #1F242D;}
+.kpi-card{background:linear-gradient(180deg,#13171E,#0E1218);border:1px solid #232A34;box-shadow:0 1px 3px rgba(0,0,0,.45);}
+.kpi-card::before{display:none;}            /* retire le halo "jouet" */
+.kpi-card::after{height:2px;}
+.kpi-card:hover{transform:none;border-color:#2B323D;box-shadow:0 6px 22px -10px rgba(0,0,0,.65);}
+.kpi-val{text-shadow:none;letter-spacing:-.3px;color:var(--tx);}
+.kpi-card .kpi-val[style*="--cy"],.kpi-val.pos{} /* laisse les couleurs sémantiques */
+/* Logo : dégradé STATIQUE, sans animation arc-en-ciel ni glow */
+.gradient-text{animation:none!important;filter:none!important;background:linear-gradient(135deg,#7FA0FF,#5FB6D6);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+/* Suppression des néons (chiffres, tags, boutons, cadre) */
+.pos,.tag-gr,.neg,.tag-rd{text-shadow:none!important;}
+.glow,.glow-gr{box-shadow:none!important;}
+.btn-primary{background:#3C5AC8;box-shadow:none;}
+.btn-primary:hover{background:#3350bb;box-shadow:none;transform:none;}
+.btn-grad{background:linear-gradient(135deg,#3C5AC8,#2F84A8);box-shadow:none;background-size:auto;}
+.btn-grad:hover{transform:none;}
+.btn:active{transform:none;}
+.nav-item:hover{transform:none;background:rgba(94,124,226,.08);}
+.nav-item.active{background:rgba(94,124,226,.13);color:#dbe4ff;}
+.nav-item.active::before{background:#5E7CE2;box-shadow:none;}
+.score-fill{background:var(--gac);}
+.chat-user{background:#3C5AC8;box-shadow:none;}
+/* Cadre ambiant : statique et quasi invisible (pas de pulsation) */
+.app-frame{animation:none!important;box-shadow:inset 0 0 0 1px rgba(94,124,226,.08)!important;}
+/* Tableaux : net, sans liseré coloré */
+th{background:rgba(255,255,255,.015);}
+tbody tr:hover td{background:rgba(94,124,226,.05);}
+.inp:focus{border-color:#5E7CE2;box-shadow:0 0 0 2px rgba(94,124,226,.14);}
+::selection{background:rgba(94,124,226,.26);}
+::-webkit-scrollbar-thumb{background:#262d38;}
+.modal{background:#11141A;border:1px solid #262d38;box-shadow:0 30px 90px rgba(0,0,0,.7);}
 </style>
 </head>
 <body x-data="app()" x-init="init()">
