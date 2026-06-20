@@ -51,9 +51,21 @@ class FMPClient:
                     resp = await client.get(url, params=params)
                     resp.raise_for_status()
                     return resp.json()
-                except (httpx.HTTPError, httpx.TimeoutException) as exc:
+                except httpx.HTTPStatusError as exc:
+                    # 4xx (bad/missing key, unknown symbol) won't recover — fail fast.
+                    if 400 <= exc.response.status_code < 500:
+                        logger.warning(
+                            "FMP %s for %s — not retrying (check FMP_API_KEY).",
+                            exc.response.status_code,
+                            url,
+                        )
+                        return []
                     wait = 2**attempt
-                    logger.warning("FMP request failed (%s); retry in %ss", exc, wait)
+                    logger.warning("FMP %s; retry in %ss", exc, wait)
+                    await asyncio.sleep(wait)
+                except (httpx.TransportError, httpx.TimeoutException) as exc:
+                    wait = 2**attempt
+                    logger.warning("FMP network error (%s); retry in %ss", exc, wait)
                     await asyncio.sleep(wait)
             logger.error("FMP request gave up after retries: %s", url)
             return []

@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException
 
 from app.core.security import SeedPhraseRejected, reject_seed_phrase
 from app.models.schemas import PortfolioSummary, Position, Transaction
-from app.services import db, portfolio
+from app.services import db, history, portfolio
 
 router = APIRouter(prefix="/api/portfolio", tags=["portfolio"])
 
@@ -14,6 +14,18 @@ router = APIRouter(prefix="/api/portfolio", tags=["portfolio"])
 @router.get("/summary", response_model=PortfolioSummary)
 async def summary():
     return await portfolio.get_summary()
+
+
+@router.get("/performance")
+async def performance():
+    """Real day/week/month/year/YTD returns from daily snapshots."""
+    await portfolio.get_summary()  # ensure today's snapshot is recorded
+    return history.performance()
+
+
+@router.get("/equity-curve")
+async def equity_curve():
+    return history.equity_curve()
 
 
 @router.get("/positions")

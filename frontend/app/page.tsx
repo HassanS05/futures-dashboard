@@ -1,9 +1,12 @@
 import { PortfolioHero } from "@/components/dashboard/PortfolioHero";
+import { EquityCurve } from "@/components/dashboard/EquityCurve";
 import { AllocationChart } from "@/components/dashboard/AllocationChart";
 import { Watchlist } from "@/components/dashboard/Watchlist";
 import { MarketHeatmap } from "@/components/dashboard/MarketHeatmap";
 import { PositionsTable } from "@/components/dashboard/PositionsTable";
 import { AIInsights } from "@/components/dashboard/AIInsights";
+import { RecentTransactions } from "@/components/dashboard/RecentTransactions";
+import { EconomicCalendar } from "@/components/dashboard/EconomicCalendar";
 
 export default function DashboardPage() {
   return (
@@ -17,17 +20,25 @@ export default function DashboardPage() {
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2">
-          <AllocationChart />
+          <EquityCurve />
+        </div>
+        <AllocationChart />
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-3">
+        <div className="lg:col-span-2">
+          <PositionsTable />
         </div>
         <Watchlist />
       </div>
 
-      <PositionsTable />
-
-      <div className="grid gap-6 lg:grid-cols-2">
-        <MarketHeatmap />
+      <div className="grid gap-6 lg:grid-cols-3">
+        <RecentTransactions />
+        <EconomicCalendar />
         <AIInsights />
       </div>
+
+      <MarketHeatmap />
     </div>
   );
 }

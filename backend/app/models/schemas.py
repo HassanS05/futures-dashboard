@@ -99,6 +99,16 @@ class FuturesResult(BaseModel):
     risk_reward: float | None
 
 
+class Alert(BaseModel):
+    id: str | None = None
+    symbol: str
+    direction: str = "above"  # above | below
+    target: float
+    note: str | None = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    triggered_at: datetime | None = None
+
+
 class AIAgent(str, Enum):
     portfolio = "portfolio"
     dca = "dca"

@@ -7,6 +7,7 @@ import {
   Bot,
   BarChart3,
   CandlestickChart,
+  Bell,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -18,6 +19,7 @@ const NAV = [
   { href: "/markets", label: "Markets", icon: LineChart },
   { href: "/trading", label: "Trading", icon: CandlestickChart },
   { href: "/analytics", label: "Analytics", icon: BarChart3 },
+  { href: "/alerts", label: "Alerts", icon: Bell },
   { href: "/copilot", label: "AI Copilot", icon: Bot },
 ];
 

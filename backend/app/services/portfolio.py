@@ -69,6 +69,12 @@ async def get_summary() -> PortfolioSummary:
 
     total_pnl = total_value - total_cost
     prev_total = total_value - day_pnl
+
+    # Record today's snapshot (idempotent per day) to power performance history.
+    from app.services import history
+
+    history.record(round(total_value, 2), round(total_pnl, 2))
+
     return PortfolioSummary(
         total_value=round(total_value, 2),
         total_cost=round(total_cost, 2),

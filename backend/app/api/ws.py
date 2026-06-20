@@ -13,7 +13,7 @@ import json
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from app.core.logging import get_logger
-from app.services import market, portfolio
+from app.services import alerts, market, portfolio
 
 logger = get_logger(__name__)
 router = APIRouter()
@@ -46,6 +46,9 @@ async def stream(ws: WebSocket):
                 "day_pnl": summary.day_pnl,
                 "day_pnl_percent": summary.day_pnl_percent,
             }
+            triggered = await alerts.evaluate()
+            if triggered:
+                payload["alerts"] = triggered
             await ws.send_json(payload)
             await asyncio.sleep(_PUSH_INTERVAL)
 

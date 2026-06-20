@@ -15,6 +15,7 @@ const PERFS = [
 
 export function PortfolioHero() {
   const { data } = useQuery({ queryKey: ["summary"], queryFn: api.portfolioSummary });
+  const { data: perf } = useQuery({ queryKey: ["performance"], queryFn: api.performance });
   const { data: live } = useStream([]);
 
   // Prefer the live stream value when present; fall back to REST snapshot.
@@ -55,14 +56,15 @@ export function PortfolioHero() {
 
       <div className="relative mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
         {PERFS.map((p) => {
-          // Day is live; others are placeholders until the history service
-          // is wired (documented in ROADMAP).
-          const val = p.key === "day" ? dayPct : 0;
+          // Real returns from the snapshot history service; null until enough
+          // history has accrued (e.g. a week of snapshots for the weekly tile).
+          const fromHistory = perf?.periods?.[p.key];
+          const val = p.key === "day" ? dayPct : fromHistory ?? null;
           return (
             <div key={p.key} className="glass-2 px-4 py-3">
               <p className="text-[11px] uppercase tracking-wider text-muted">{p.label}</p>
-              <p className={`stat-num mt-0.5 text-base ${toneClass(val)}`}>
-                {p.key === "day" ? fmtPercent(val) : "—"}
+              <p className={`stat-num mt-0.5 text-base ${toneClass(val ?? 0)}`}>
+                {val === null || val === undefined ? "—" : fmtPercent(val)}
               </p>
             </div>
           );

@@ -10,7 +10,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import ai, analytics, futures, market, portfolio, ws
+from app.api import ai, alerts, analytics, futures, market, portfolio, ws
 from app.config import get_settings
 from app.core.logging import get_logger
 from app.services.db import init_db
@@ -43,7 +43,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-for module in (market, portfolio, analytics, ai, futures):
+for module in (market, portfolio, analytics, ai, futures, alerts):
     app.include_router(module.router)
 app.include_router(ws.router)
 

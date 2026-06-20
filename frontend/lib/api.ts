@@ -25,6 +25,20 @@ async function http<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const api = {
   portfolioSummary: () => http<PortfolioSummary>("/api/portfolio/summary"),
+  performance: () =>
+    http<{
+      current: number;
+      periods: Record<string, number | null>;
+      history_days: number;
+    }>("/api/portfolio/performance"),
+  equityCurve: () => http<{ day: string; value: number; pnl: number }[]>(
+    "/api/portfolio/equity-curve",
+  ),
+  transactions: (limit = 10) => http<any[]>(`/api/portfolio/transactions?limit=${limit}`),
+  alerts: () => http<any[]>("/api/alerts"),
+  createAlert: (body: object) =>
+    http("/api/alerts", { method: "POST", body: JSON.stringify(body) }),
+  deleteAlert: (id: string) => http(`/api/alerts/${id}`, { method: "DELETE" }),
   quotes: (symbols: string[]) =>
     http<Quote[]>(`/api/market/quotes?symbols=${symbols.join(",")}`),
   movers: (kind: "gainers" | "losers" | "actives" = "gainers") =>
