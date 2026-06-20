@@ -1639,6 +1639,60 @@ async def default_portfolio(user=Depends(get_current_user)):
     enriched["portfolio"] = dict(portfolio)
     return enriched
 
+
+@app.get("/api/v1/portfolios/default/equity-curve")
+async def default_equity_curve(days: int = 90, user=Depends(get_current_user)):
+    """Reconstitue la valeur du portefeuille sur `days` jours à partir de
+    l'historique des actifs (best-effort). Les actifs sans historique fiable
+    sont comptés à plat à leur valeur actuelle. Résultat caché 15 min."""
+    conn = get_db()
+    pf = conn.execute("SELECT * FROM portfolios WHERE user_id=? AND is_default=1",
+                      (user["id"],)).fetchone() or \
+         conn.execute("SELECT * FROM portfolios WHERE user_id=? LIMIT 1", (user["id"],)).fetchone()
+    if not pf:
+        conn.close()
+        return {"points": []}
+    rows = conn.execute("SELECT * FROM portfolio_positions WHERE portfolio_id=?",
+                        (pf["id"],)).fetchall()
+    conn.close()
+
+    ck = f"equity_{pf['id']}_{days}"
+    if ck in _cache and time.time() - _cache[ck]["ts"] < 900:
+        return _cache[ck]["data"]
+
+    enriched = await enrich_portfolio(pf["id"], rows)
+    pos = enriched.get("positions", [])
+    hist_series = []   # listes de valeurs (qty*close) alignables
+    flat_total = 0.0
+    for p in pos:
+        qty = p.get("quantity") or 0
+        cur_val = p.get("value") or 0
+        closes = []
+        if p.get("asset_type") == "crypto" and qty > 0:
+            try:
+                s = await asyncio.wait_for(fetch_close_series(p["symbol"], days), timeout=8)
+                closes = [c["close"] for c in s if c.get("close")]
+            except Exception:
+                closes = []
+        if len(closes) >= 10:
+            hist_series.append([qty * c for c in closes[-days:]])
+        else:
+            flat_total += cur_val
+
+    points = []
+    if hist_series:
+        n = min(len(s) for s in hist_series)
+        for i in range(n):
+            day_val = sum(s[len(s) - n + i] for s in hist_series) + flat_total
+            points.append(round(day_val, 2))
+    elif flat_total:
+        points = [round(flat_total, 2)]
+
+    out = {"points": points, "days": days,
+           "current": round(enriched.get("total_value") or 0, 2)}
+    _cache[ck] = {"data": out, "ts": time.time()}
+    return out
+
 @app.post("/api/v1/portfolios/{pid}/positions")
 async def add_position(pid: int, req: PositionAdd, user=Depends(get_current_user)):
     conn = get_db()

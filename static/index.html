@@ -520,28 +520,26 @@ tbody tr:hover td{background:rgba(94,124,226,.05);}
     </div>
   </div>
 
-  <!-- Table de positions + Copilote (comme la page d'accueil) -->
+  <!-- Courbe d'équity + Copilote (comme la page d'accueil) -->
   <div style="display:grid;grid-template-columns:2fr 1fr;gap:12px;margin-bottom:14px;">
-    <div class="card" style="padding:0;overflow:hidden;">
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-bottom:1px solid var(--bd);">
-        <span style="font-size:13px;font-weight:600;">Mes positions</span>
-        <button @click="go('portfolio')" class="btn btn-ghost btn-sm">Voir tout</button>
+    <div class="card" style="padding:14px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <span style="font-size:13px;font-weight:600;">Courbe d'équity</span>
+        <span style="font-size:10px;color:var(--mu);">90 j</span>
       </div>
-      <table>
-        <thead><tr><th>Actif</th><th style="text-align:right;">Prix</th><th style="text-align:right;">Valeur</th><th style="text-align:right;">P&amp;L</th><th style="text-align:right;">24h</th></tr></thead>
-        <tbody>
-          <template x-for="p in (pf.positions||[]).slice(0,8)" :key="p.id">
-            <tr>
-              <td><div style="font-weight:600;" x-text="p.symbol"></div><div style="font-size:10px;color:var(--mu);" x-text="p.name||p.asset_type||''"></div></td>
-              <td class="mono" style="text-align:right;color:var(--mu2);" x-text="'$'+fmtNum(p.current_price||0)"></td>
-              <td class="mono" style="text-align:right;font-weight:500;" x-text="'$'+fmtNum(p.value||0)"></td>
-              <td class="mono" style="text-align:right;" :class="(p.pnl_pct||0)>=0?'pos':'neg'" x-text="fmtPct(p.pnl_pct||0)"></td>
-              <td class="mono" style="text-align:right;" :class="(p.change_24h||0)>=0?'pos':'neg'" x-text="fmtPct(p.change_24h||0)"></td>
-            </tr>
-          </template>
-          <tr x-show="!(pf.positions||[]).length"><td colspan="5" style="text-align:center;padding:24px;color:var(--mu);">Aucune position — <button @click="go('portfolio')" class="btn btn-primary btn-sm">+ Ajouter</button></td></tr>
-        </tbody>
-      </table>
+      <div style="height:206px;position:relative;">
+        <template x-if="(equity.points||[]).length>1">
+          <svg viewBox="0 0 480 200" preserveAspectRatio="none" style="width:100%;height:100%;display:block;">
+            <defs><linearGradient id="eqg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#5E7CE2" stop-opacity=".30"/><stop offset="100%" stop-color="#5E7CE2" stop-opacity="0"/></linearGradient></defs>
+            <path :d="equityArea(equity.points)" fill="url(#eqg)"/>
+            <path :d="equityLine(equity.points)" fill="none" stroke="#5E7CE2" stroke-width="2" vector-effect="non-scaling-stroke"/>
+          </svg>
+        </template>
+        <div x-show="(equity.points||[]).length<=1" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--mu);font-size:12px;text-align:center;padding:0 20px;">
+          <span x-show="equityLoading"><span class="spin"></span> Chargement…</span>
+          <span x-show="!equityLoading">Pas assez d'historique pour tracer la courbe (actifs récents/sans données).</span>
+        </div>
+      </div>
     </div>
 
     <!-- Copilote IA -->
@@ -561,6 +559,29 @@ tbody tr:hover td{background:rgba(94,124,226,.05);}
         <button @click="go('chat')" class="btn btn-ghost btn-sm" style="flex:1;justify-content:center;">Assistant</button>
       </div>
     </div>
+  </div>
+
+  <!-- Mes positions (pleine largeur) -->
+  <div class="card" style="padding:0;overflow:hidden;margin-bottom:14px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-bottom:1px solid var(--bd);">
+      <span style="font-size:13px;font-weight:600;">Mes positions</span>
+      <button @click="go('portfolio')" class="btn btn-ghost btn-sm">Voir tout</button>
+    </div>
+    <table>
+      <thead><tr><th>Actif</th><th style="text-align:right;">Prix</th><th style="text-align:right;">Valeur</th><th style="text-align:right;">P&amp;L</th><th style="text-align:right;">24h</th></tr></thead>
+      <tbody>
+        <template x-for="p in (pf.positions||[]).slice(0,8)" :key="p.id">
+          <tr>
+            <td><div style="font-weight:600;" x-text="p.symbol"></div><div style="font-size:10px;color:var(--mu);" x-text="p.name||p.asset_type||''"></div></td>
+            <td class="mono" style="text-align:right;color:var(--mu2);" x-text="'$'+fmtNum(p.current_price||0)"></td>
+            <td class="mono" style="text-align:right;font-weight:500;" x-text="'$'+fmtNum(p.value||0)"></td>
+            <td class="mono" style="text-align:right;" :class="(p.pnl_pct||0)>=0?'pos':'neg'" x-text="fmtPct(p.pnl_pct||0)"></td>
+            <td class="mono" style="text-align:right;" :class="(p.change_24h||0)>=0?'pos':'neg'" x-text="fmtPct(p.change_24h||0)"></td>
+          </tr>
+        </template>
+        <tr x-show="!(pf.positions||[]).length"><td colspan="5" style="text-align:center;padding:24px;color:var(--mu);">Aucune position — <button @click="go('portfolio')" class="btn btn-primary btn-sm">+ Ajouter</button></td></tr>
+      </tbody>
+    </table>
   </div>
 
   <!-- Top Cryptos + Opportunités -->
@@ -2975,6 +2996,7 @@ function app() { return {
   disp:{}, _tw:{},
   topCoins:[], opps:[], etfs:[], watchlist:[], alerts:[],
   heatmapCoins:[], heatmapLoading:false,
+  equity:{points:[]}, equityLoading:false,
   ipo:{priced:[],upcoming:[],filed:[],updated:''}, ipoLoading:false,
   ipoAi:null, ipoAiOpen:false, ipoAiLoading:false, ipoAiTarget:'',
   txList:[], simAccounts:[], selectedSim:null, simPositions:[], simTrades:[],
@@ -3066,6 +3088,7 @@ function app() { return {
 
   go(p){
     this.page=p;
+    if(p==='dashboard') this.loadEquityCurve();
     if(p==='portfolio') this.loadPortfolio();
     if(p==='transactions') this.loadTx();
     if(p==='watchlist') this.loadWatchlist();
@@ -3093,6 +3116,7 @@ function app() { return {
     ]);
     // Load opps after top coins are cached (avoids duplicate CoinGecko call)
     this.loadOpps();
+    this.loadEquityCurve();
   },
 
   async loadPortfolio(){try{this.pf=await this.api('GET','/api/v1/portfolios/default/summary')||{};await this.$nextTick();this.drawDonut();}catch{}},
@@ -3123,6 +3147,26 @@ function app() { return {
   async loadTopCoins(){try{const d=await this.api('GET','/api/v1/market/coins?limit=50');this.topCoins=d?.coins||[];this.tickers=this.topCoins.slice(0,15).map(c=>({symbol:(c.symbol||'').toUpperCase(),price:c.current_price||0,change_24h:c.price_change_percentage_24h||0}));}catch{}},
   async loadOpps(){try{const d=await this.api('GET','/api/v1/ai/opportunities');this.opps=d?.opportunities||[];}catch{}},
 
+  async loadEquityCurve(){
+    this.equityLoading=true;
+    try{const d=await this.api('GET','/api/v1/portfolios/default/equity-curve?days=90');this.equity=d||{points:[]};}
+    catch(e){this.equity={points:[]};}finally{this.equityLoading=false;}
+  },
+  _eqXY(points){
+    const n=points.length; if(n<2) return [];
+    const min=Math.min(...points), max=Math.max(...points);
+    const pad=(max-min)*0.12 || (max*0.02)||1; const lo=min-pad, hi=max+pad;
+    const W=480,H=200,T=8,B=192;
+    return points.map((v,i)=>({x:(i/(n-1))*W, y:B-((v-lo)/((hi-lo)||1))*(B-T)}));
+  },
+  equityLine(points){
+    const pts=this._eqXY(points); if(!pts.length) return '';
+    return 'M'+pts.map(p=>p.x.toFixed(1)+' '+p.y.toFixed(1)).join(' L');
+  },
+  equityArea(points){
+    const pts=this._eqXY(points); if(!pts.length) return '';
+    return 'M'+pts.map(p=>p.x.toFixed(1)+' '+p.y.toFixed(1)).join(' L')+` L480 200 L0 200 Z`;
+  },
   hmColor(pct){
     // Palette sobre : base graphite sombre -> vert/rouge feutrés (non néon).
     const v=Number(pct)||0; const a=Math.min(Math.abs(v)/8,1);
