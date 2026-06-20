@@ -496,106 +496,111 @@ tbody tr:hover td{background:rgba(94,124,226,.05);}
     <button @click="loadAll()" class="btn btn-ghost btn-sm">↻ Actualiser</button>
   </div>
 
-  <!-- KPIs -->
-  <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:16px;">
-    <div class="kpi-card card-glow">
-      <div class="kpi-label">Valeur Portefeuille</div>
-      <div class="kpi-val gradient-text" x-effect="tweenTo('pfTotal', pf.total_value||0)" x-text="'$'+fmtNum(disp.pfTotal||0)"></div>
-      <div class="kpi-sub" :class="(pf.total_pnl||0)>=0?'pos':'neg'" x-text="((pf.total_pnl||0)>=0?'▲ ':' ▼')+fmtNum(Math.abs(pf.total_pnl||0))+' ('+fmtPct(pf.total_pnl_pct||0)+')'"></div>
+  <!-- KPIs (épurés, alignés sur la page d'accueil) -->
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:14px;">
+    <div class="kpi-card">
+      <div class="kpi-label">Valeur portefeuille</div>
+      <div class="kpi-val" x-effect="tweenTo('pfTotal', pf.total_value||0)" x-text="'$'+fmtNum(disp.pfTotal||0)"></div>
+      <div class="kpi-sub" :class="(pf.total_pnl||0)>=0?'pos':'neg'" x-text="((pf.total_pnl||0)>=0?'▲ ':'▼ ')+fmtPct(pf.total_pnl_pct||0)"></div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">P&amp;L global</div>
+      <div class="kpi-val" :class="(pf.total_pnl||0)>=0?'pos':'neg'" x-text="((pf.total_pnl||0)>=0?'+':'')+'$'+fmtNum(pf.total_pnl||0)"></div>
+      <div class="kpi-sub" style="color:var(--mu);" x-text="(pf.positions||[]).filter(p=>(p.pnl||0)>=0).length+' en gain · '+(pf.positions||[]).filter(p=>(p.pnl||0)<0).length+' en perte'"></div>
     </div>
     <div class="kpi-card">
       <div class="kpi-label">Positions</div>
       <div class="kpi-val" x-text="(pf.positions||[]).length"></div>
-      <div class="kpi-sub" style="color:var(--gr);" x-text="(pf.positions||[]).filter(p=>(p.pnl||0)>=0).length+' en gain · '+(pf.positions||[]).filter(p=>(p.pnl||0)<0).length+' en perte'"></div>
+      <div class="kpi-sub" style="color:var(--mu);">actifs suivis</div>
     </div>
     <div class="kpi-card">
       <div class="kpi-label">Fear &amp; Greed</div>
       <div class="kpi-val" :style="`color:${fg.value>60?'var(--gr)':fg.value<40?'var(--rd)':'var(--yw)'}`" x-text="fg.value||'--'"></div>
       <div class="kpi-sub" style="color:var(--mu);" x-text="fg.label||'--'"></div>
     </div>
-    <div class="kpi-card">
-      <div class="kpi-label">Cap. Marché</div>
-      <div class="kpi-val" x-effect="tweenTo('mcap', gm.total_market_cap||0)" x-text="fmtLarge(disp.mcap||0)"></div>
-      <div class="kpi-sub" :class="(gm.market_cap_change_24h||0)>=0?'pos':'neg'" x-text="fmtPct(gm.market_cap_change_24h||0)+' 24h'"></div>
+  </div>
+
+  <!-- Table de positions + Copilote (comme la page d'accueil) -->
+  <div style="display:grid;grid-template-columns:2fr 1fr;gap:12px;margin-bottom:14px;">
+    <div class="card" style="padding:0;overflow:hidden;">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-bottom:1px solid var(--bd);">
+        <span style="font-size:13px;font-weight:600;">Mes positions</span>
+        <button @click="go('portfolio')" class="btn btn-ghost btn-sm">Voir tout</button>
+      </div>
+      <table>
+        <thead><tr><th>Actif</th><th style="text-align:right;">Prix</th><th style="text-align:right;">Valeur</th><th style="text-align:right;">P&amp;L</th><th style="text-align:right;">24h</th></tr></thead>
+        <tbody>
+          <template x-for="p in (pf.positions||[]).slice(0,8)" :key="p.id">
+            <tr>
+              <td><div style="font-weight:600;" x-text="p.symbol"></div><div style="font-size:10px;color:var(--mu);" x-text="p.name||p.asset_type||''"></div></td>
+              <td class="mono" style="text-align:right;color:var(--mu2);" x-text="'$'+fmtNum(p.current_price||0)"></td>
+              <td class="mono" style="text-align:right;font-weight:500;" x-text="'$'+fmtNum(p.value||0)"></td>
+              <td class="mono" style="text-align:right;" :class="(p.pnl_pct||0)>=0?'pos':'neg'" x-text="fmtPct(p.pnl_pct||0)"></td>
+              <td class="mono" style="text-align:right;" :class="(p.change_24h||0)>=0?'pos':'neg'" x-text="fmtPct(p.change_24h||0)"></td>
+            </tr>
+          </template>
+          <tr x-show="!(pf.positions||[]).length"><td colspan="5" style="text-align:center;padding:24px;color:var(--mu);">Aucune position — <button @click="go('portfolio')" class="btn btn-primary btn-sm">+ Ajouter</button></td></tr>
+        </tbody>
+      </table>
     </div>
-    <div class="kpi-card">
-      <div class="kpi-label">Volume 24h</div>
-      <div class="kpi-val" x-effect="tweenTo('vol', gm.total_volume_24h||0)" x-text="fmtLarge(disp.vol||0)"></div>
-      <div class="kpi-sub" style="color:var(--mu);">Dominance BTC: <span style="color:var(--cy);" x-text="(gm.btc_dominance||0).toFixed(1)+'%'"></span></div>
+
+    <!-- Copilote IA -->
+    <div class="card" style="display:flex;flex-direction:column;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+        <span style="display:grid;place-items:center;height:24px;width:24px;border-radius:7px;background:rgba(94,124,226,.18);color:var(--ac);font-size:10px;font-weight:700;">IA</span>
+        <span style="font-size:13px;font-weight:600;">Copilote</span>
+      </div>
+      <div x-show="!pfAnalysis" style="flex:1;font-size:12px;color:var(--mu);line-height:1.6;">
+        Demande une analyse de ton portefeuille : diversification, risque et pistes de rééquilibrage chiffrées.
+      </div>
+      <div x-show="pfAnalysis" style="flex:1;font-size:12px;color:var(--mu2);line-height:1.6;" x-text="pfAnalysis?.synthese||''"></div>
+      <div style="display:flex;gap:6px;margin-top:12px;">
+        <button @click="analyzePortfolio()" class="btn btn-primary btn-sm" style="flex:1;justify-content:center;" :disabled="pfAnalyzing">
+          <span x-show="pfAnalyzing" class="spin"></span><span x-text="pfAnalyzing?'Analyse…':'Analyser'"></span>
+        </button>
+        <button @click="go('chat')" class="btn btn-ghost btn-sm" style="flex:1;justify-content:center;">Assistant</button>
+      </div>
     </div>
   </div>
 
-  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
-    <!-- Portfolio top positions -->
+  <!-- Top Cryptos + Opportunités -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
     <div class="card">
-      <div style="font-size:12px;font-weight:600;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;">
-        <span>💼 Top Positions</span>
-        <button @click="go('portfolio')" class="btn btn-ghost btn-sm">Voir tout</button>
-      </div>
-      <div style="display:flex;flex-direction:column;gap:6px;">
-        <template x-for="p in (pf.positions||[]).slice(0,6)" :key="p.id">
-          <div style="display:flex;justify-content:space-between;align-items:center;">
-            <div style="display:flex;align-items:center;gap:6px;">
-              <div style="width:3px;height:22px;border-radius:2px;background:rgba(124,107,255,.35);"></div>
-              <div>
-                <div style="font-weight:600;font-size:12px;" x-text="p.symbol"></div>
-                <div style="font-size:10px;color:var(--mu);" x-text="'$'+fmtNum(p.current_price||0)"></div>
-              </div>
-            </div>
-            <div style="text-align:right;">
-              <div class="mono" style="font-size:12px;font-weight:500;" x-text="'$'+fmtNum(p.value||0)"></div>
-              <div class="mono" style="font-size:10px;" :class="(p.pnl_pct||0)>=0?'pos':'neg'" x-text="fmtPct(p.pnl_pct||0)"></div>
-            </div>
-          </div>
-        </template>
-        <div x-show="!(pf.positions||[]).length" style="text-align:center;padding:16px;color:var(--mu);font-size:12px;">
-          Aucune position<br><button @click="go('portfolio')" class="btn btn-primary btn-sm" style="margin-top:8px;">+ Ajouter</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Top Cryptos -->
-    <div class="card">
-      <div style="font-size:12px;font-weight:600;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;">
-        <span>🔥 Top Cryptos</span>
+      <div style="font-size:13px;font-weight:600;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;">
+        <span>Top cryptos</span>
         <button @click="go('market')" class="btn btn-ghost btn-sm">Marché</button>
       </div>
-      <div style="display:flex;flex-direction:column;gap:4px;">
+      <div style="display:flex;flex-direction:column;gap:2px;">
         <template x-for="c in topCoins.slice(0,8)" :key="c.id">
-          <div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid rgba(30,45,69,.3);">
-            <div style="display:flex;align-items:center;gap:6px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid rgba(30,45,69,.25);">
+            <div style="display:flex;align-items:center;gap:8px;">
               <img :src="c.image" style="width:18px;height:18px;border-radius:50%;" onerror="this.style.display='none'">
               <span style="font-weight:500;" x-text="c.symbol?.toUpperCase()"></span>
             </div>
-            <div style="display:flex;gap:10px;align-items:center;">
+            <div style="display:flex;gap:12px;align-items:center;">
               <span class="mono" style="font-size:11px;" x-text="'$'+fmtNum(c.current_price||0)"></span>
-              <span class="mono" style="font-size:11px;width:52px;text-align:right;" :class="(c.price_change_percentage_24h||0)>=0?'pos':'neg'" x-text="fmtPct(c.price_change_percentage_24h||0)"></span>
+              <span class="mono" style="font-size:11px;width:56px;text-align:right;" :class="(c.price_change_percentage_24h||0)>=0?'pos':'neg'" x-text="fmtPct(c.price_change_percentage_24h||0)"></span>
             </div>
           </div>
         </template>
       </div>
     </div>
-
-    <!-- Opportunités -->
     <div class="card">
-      <div style="font-size:12px;font-weight:600;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;">
-        <span>💡 Opportunités IA</span>
+      <div style="font-size:13px;font-weight:600;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;">
+        <span>Opportunités IA</span>
         <button @click="go('opportunities')" class="btn btn-ghost btn-sm">Toutes</button>
       </div>
       <div style="display:flex;flex-direction:column;gap:6px;">
         <template x-for="o in opps.slice(0,5)" :key="o.symbol">
           <div class="card-sm" style="display:flex;justify-content:space-between;align-items:center;">
-            <div>
-              <div style="font-weight:600;font-size:12px;" x-text="o.symbol"></div>
-              <div style="font-size:10px;color:var(--mu);" x-text="o.signal"></div>
-            </div>
+            <div><div style="font-weight:600;font-size:12px;" x-text="o.symbol"></div><div style="font-size:10px;color:var(--mu);" x-text="o.signal"></div></div>
             <div style="text-align:right;">
               <div class="tag tag-bl mono" x-text="(o.score||0).toFixed(0)+'/100'"></div>
               <div class="mono" style="font-size:10px;margin-top:2px;" :class="(o.change_24h||0)>=0?'pos':'neg'" x-text="fmtPct(o.change_24h||0)"></div>
             </div>
           </div>
         </template>
-        <div x-show="!opps.length" style="text-align:center;padding:16px;color:var(--mu);font-size:12px;">Chargement...</div>
+        <div x-show="!opps.length" style="text-align:center;padding:16px;color:var(--mu);font-size:12px;">Chargement…</div>
       </div>
     </div>
   </div>
