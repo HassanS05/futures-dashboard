@@ -2462,6 +2462,55 @@ async def analyze_express(req: dict, user=Depends(get_current_user)):
         "source": "Données réelles : CoinGecko + indicateurs calculés (RSI/MM/MACD/MagicBand)",
     }
 
+@app.post("/api/v1/ai/analyze-ipo")
+async def analyze_ipo(req: dict, user=Depends(get_current_user)):
+    """Analyse IA d'une IPO à venir : verdict + intérêt d'investir ou non.
+    Routage IA = tâche 'research' (Claude en priorité)."""
+    if not ai_enabled():
+        raise HTTPException(503, "Configurez une clé IA (ANTHROPIC/OPENAI/GOOGLE) dans .env")
+    company = req.get("company") or req.get("name") or "?"
+    ticker = req.get("ticker") or ""
+    exchange = req.get("exchange") or ""
+    price = req.get("price") or ""
+    shares = req.get("shares") or ""
+    value = req.get("value") or ""
+    date = req.get("date") or ""
+    prompt = f"""Tu es analyste IPO institutionnel chez HR5 Invest. Analyse cette introduction
+en bourse À VENIR et donne un avis d'investissement clair et honnête.
+
+Société : {company}
+Ticker : {ticker}
+Bourse : {exchange}
+Fourchette de prix : {price}
+Nombre d'actions : {shares}
+Montant levé : {value}
+Date prévue : {date}
+
+Réponds UNIQUEMENT en JSON strict (toutes les valeurs texte sur une seule ligne) :
+{{
+  "societe": "{company}",
+  "secteur": "secteur estimé",
+  "verdict": "Tres interessant|Interessant|A surveiller|Prudence|A eviter",
+  "interet_investir": true,
+  "score": 0,
+  "niveau_risque": "Faible|Modere|Eleve|Tres eleve",
+  "synthese": "2-3 phrases sur l'opportunite, le business model et le contexte de marche",
+  "points_forts": ["...", "..."],
+  "points_faibles": ["...", "..."],
+  "facteurs_cles": ["valorisation", "momentum du secteur", "..."],
+  "strategie": "Comment aborder cette IPO (attendre la fin du lock-up, taille de position, jour 1 vs apres, etc.)",
+  "avertissement": "Rappel: les IPO sont volatiles et l'information est limitee avant cotation."
+}}
+
+Base-toi sur tes connaissances du secteur et de la societe. Si l'information est limitee,
+sois prudent et indique-le clairement. Retourne UNIQUEMENT le JSON."""
+    try:
+        text = await ai_complete(prompt, max_tokens=1500, task="research")
+        return _safe_json_loads(text)
+    except Exception as e:
+        logger.error(f"analyze_ipo error: {e}")
+        raise HTTPException(500, f"Analyse IPO indisponible : {e}")
+
 @app.post("/api/v1/backtest")
 async def backtest(req: dict, user=Depends(get_current_user)):
     """Backtest d'une stratégie (style Strategy Builder BlockUnity).
