@@ -1,0 +1,16 @@
+INFO:     Started server process [4724]
+INFO:     Waiting for application startup.
+ERROR:    Traceback (most recent call last):
+  File "C:\Users\Administrator\Desktop\HR5 INVEST\venv\Lib\site-packages\starlette\routing.py", line 693, in lifespan
+    async with self.lifespan_context(app) as maybe_state:
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Administrator\AppData\Local\Programs\Python\Python312\Lib\contextlib.py", line 210, in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Administrator\Desktop\HR5 INVEST\backend\main.py", line 994, in lifespan
+    init_db()
+  File "C:\Users\Administrator\Desktop\HR5 INVEST\backend\main.py", line 244, in init_db
+    conn.execute("""INSERT OR IGNORE INTO users (email, username, hashed_password, full_name, is_admin, subscription)
+sqlite3.OperationalError: table users has no column named subscription
+
+ERROR:    Application startup failed. Exiting.
