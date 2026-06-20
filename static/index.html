@@ -266,6 +266,48 @@ tr:hover td{box-shadow:inset 2px 0 0 #7C6BFF;}
   0%,100%{box-shadow:inset 0 0 0 1px rgba(124,107,255,.20),inset 0 0 16px rgba(124,107,255,.08),inset 0 0 46px rgba(52,224,200,.04);}
   50%    {box-shadow:inset 0 0 0 1px rgba(52,224,200,.40),inset 0 0 26px rgba(124,107,255,.13),inset 0 0 64px rgba(52,224,200,.07);}
 }
+
+/* ════════════════════════════════════════════════════════════════
+   HR5 — RAFFINEMENT PREMIUM "WOW" (signature or + profondeur + typo)
+   Surcouche finale : élève le rendu sans toucher à la structure.
+   ════════════════════════════════════════════════════════════════ */
+:root{ --gold:#E8B765; --gold2:#F6D89B; --gac2:linear-gradient(135deg,#7C6BFF 0%,#34E0C8 50%,#E8B765 100%); }
+/* Chiffres parfaitement alignés (lecture "terminal") */
+.mono,.kpi-val,td .mono,th{font-variant-numeric:tabular-nums;font-feature-settings:"tnum" 1,"ss01" 1;}
+/* Hiérarchie typographique plus nette */
+.nav-section{letter-spacing:.14em;font-size:9.5px;}
+.kpi-label{letter-spacing:.10em;}
+/* KPI : héros lumineux — voile radial + chiffre sculpté */
+.kpi-card{position:relative;overflow:hidden;}
+.kpi-card::before{content:'';position:absolute;inset:0;z-index:0;background:
+   radial-gradient(120% 80% at 0% 0%, rgba(124,107,255,.12), transparent 60%),
+   radial-gradient(90% 70% at 100% 0%, rgba(52,224,200,.08), transparent 55%);
+   pointer-events:none;}
+.kpi-card > *{position:relative;z-index:1;}
+.kpi-val{font-size:24px;letter-spacing:-.6px;text-shadow:0 0 24px rgba(124,107,255,.22);}
+/* Bordures légèrement lumineuses + coins plus doux */
+.card,.kpi-card{border-radius:14px;}
+.card{border:1px solid rgba(124,107,255,.14);}
+.card:hover{border-color:rgba(124,107,255,.34);}
+/* Badges : signature or pour PRO / premium, dégradé pour HOT */
+.fire-badge{border-radius:4px;}
+[class*="fire-badge"]:not([style]){background:linear-gradient(135deg,rgba(232,183,101,.16),rgba(246,216,155,.06));color:var(--gold);border:1px solid rgba(232,183,101,.32);}
+/* Logo : dégradé tri-ton (violet→menthe→or) — la signature qui émerveille */
+.gradient-text{background:var(--gac2);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
+   background-size:200% auto;animation:hueShift 8s ease infinite;}
+@keyframes hueShift{0%,100%{background-position:0% 50%;}50%{background-position:100% 50%;}}
+/* Boutons primaires : profondeur + halo */
+.btn-primary{background:linear-gradient(135deg,#7C6BFF,#6B57FF);}
+.btn-grad{background:var(--gac2);background-size:160% auto;}
+.btn-grad:hover{background-position:100% 50%;}
+/* Tags hausse/baisse plus vivants */
+.tag-gr,.pos{text-shadow:0 0 12px rgba(16,185,129,.25);}
+/* Ticker : séparateurs plus discrets, valeurs nettes */
+.ticker-item{border-right:1px solid rgba(124,107,255,.12);}
+/* Modale : verre profond */
+.modal{background:linear-gradient(160deg,#12122a,#0C0C18);border:1px solid rgba(124,107,255,.22);box-shadow:0 30px 90px rgba(0,0,0,.7),0 0 0 1px rgba(124,107,255,.10);}
+/* Lien actif sidebar : pastille lumineuse renforcée */
+.nav-item.active::before{width:3px;height:20px;}
 </style>
 </head>
 <body x-data="app()" x-init="init()">
