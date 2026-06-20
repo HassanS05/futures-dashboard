@@ -1039,7 +1039,7 @@ tbody tr:hover td{background:rgba(94,124,226,.05);}
         </div>
       </div>
       <template x-for="m in chatMessages" :key="m.id">
-        <div :style="m.role==='user'?'display:flex;justify-content:flex-end':'display:flex;justify-content:flex-start'">
+        <div x-show="m.role==='user' || m.content" :style="m.role==='user'?'display:flex;justify-content:flex-end':'display:flex;justify-content:flex-start'">
           <div :class="m.role==='user'?'chat-user':'chat-ai'" x-html="m.role==='user'? m.content : renderMd(m.content)"></div>
         </div>
       </template>
@@ -3527,8 +3527,12 @@ function app() { return {
           document.getElementById('chat-msgs')?.scrollTo(0,9e9);}catch{}
         }
       }
-    }catch(e){ai.content='Erreur: '+e.message;}
-    finally{this.chatLoading=false;}
+    }catch(e){ai.content='⚠️ Erreur: '+e.message;}
+    finally{
+      if(!ai.content) ai.content='⚠️ Réponse vide. Vérifie que le serveur a été relancé après le dernier pull, et tes clés API (ANTHROPIC_API_KEY / OPENAI_API_KEY) dans .env.';
+      this.chatMessages=[...this.chatMessages];
+      this.chatLoading=false;
+    }
   },
 
   async analyzePortfolio(){
