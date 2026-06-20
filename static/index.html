@@ -1435,12 +1435,21 @@ tbody tr:hover td{background:rgba(94,124,226,.05);}
         </button>
       </div>
       <div x-show="walletResults.solana" style="margin-top:10px;">
-        <div style="font-size:11px;color:var(--mu);margin-bottom:6px;" x-text="(walletResults.solana?.token_count||0)+' tokens trouvés'"></div>
-        <div style="max-height:180px;overflow-y:auto;display:flex;flex-direction:column;gap:3px;">
-          <template x-for="t in (walletResults.solana?.tokens||[])" :key="t.symbol+t.mint">
-            <div style="display:flex;justify-content:space-between;padding:5px 8px;background:var(--s2);border-radius:5px;">
-              <span style="font-weight:600;font-size:12px;" x-text="t.symbol"></span>
-              <span class="mono" style="font-size:12px;" x-text="fmtQty(t.balance)"></span>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+          <span style="font-size:11px;color:var(--mu);" x-text="(walletResults.solana?.token_count||0)+' tokens'"></span>
+          <span class="mono" style="font-size:12px;font-weight:700;" x-show="walletResults.solana?.total_value!=null" x-text="'$'+fmtNum(walletResults.solana?.total_value||0)"></span>
+        </div>
+        <div style="max-height:220px;overflow-y:auto;display:flex;flex-direction:column;gap:4px;">
+          <template x-for="t in (walletResults.solana?.tokens||[])" :key="t.mint">
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 9px;background:var(--s2);border-radius:7px;">
+              <div style="min-width:0;">
+                <div style="font-weight:600;font-size:12px;" x-text="t.symbol"></div>
+                <div class="mono" style="font-size:10px;color:var(--mu);" x-text="fmtQty(t.balance)+(t.name?(' · '+t.name):'')"></div>
+              </div>
+              <div style="text-align:right;">
+                <div class="mono" style="font-size:12px;font-weight:600;" x-text="t.value!=null?('$'+fmtNum(t.value)):'—'"></div>
+                <div class="mono" style="font-size:10px;" :class="(t.change_24h||0)>=0?'pos':'neg'" x-text="t.change_24h!=null?fmtPct(t.change_24h):''"></div>
+              </div>
             </div>
           </template>
         </div>

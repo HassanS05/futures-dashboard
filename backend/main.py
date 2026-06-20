@@ -3027,6 +3027,46 @@ SOL_TOKENS = {
     "mb1eu7TzEc71KxDpsmsKoucSSuuoGLv1drys1oP2jh6": "MOBILE",
 }
 
+async def _enrich_solana_tokens(tokens: list) -> None:
+    """Resolve real symbol/name/price/value for SPL tokens via DexScreener
+    (indexes Solana memecoins). Mutates the list in place; best-effort."""
+    mints = list({t["mint"] for t in tokens if t.get("mint") and t["mint"] != "native"})
+    if not mints:
+        return
+    best: dict = {}
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            # DexScreener accepte jusqu'à 30 adresses séparées par des virgules
+            for i in range(0, len(mints), 30):
+                chunk = mints[i:i + 30]
+                r = await client.get(
+                    "https://api.dexscreener.com/latest/dex/tokens/" + ",".join(chunk))
+                for p in (r.json().get("pairs") or []):
+                    if p.get("chainId") != "solana":
+                        continue
+                    bt = p.get("baseToken") or {}
+                    m = bt.get("address")
+                    liq = ((p.get("liquidity") or {}).get("usd")) or 0
+                    if not m:
+                        continue
+                    if m not in best or liq > best[m]["liq"]:
+                        best[m] = {"liq": liq, "symbol": bt.get("symbol"),
+                                   "name": bt.get("name"),
+                                   "price": float(p.get("priceUsd") or 0),
+                                   "change_24h": (p.get("priceChange") or {}).get("h24")}
+    except Exception as e:
+        logger.warning(f"DexScreener enrich error: {e}")
+    for t in tokens:
+        info = best.get(t["mint"])
+        if info:
+            if info.get("symbol"):
+                t["symbol"] = info["symbol"]
+            t["name"] = info.get("name") or t.get("name") or ""
+            t["price"] = round(info["price"], 8) if info.get("price") else None
+            t["change_24h"] = info.get("change_24h")
+            t["value"] = round(t["balance"] * info["price"], 2) if info.get("price") else None
+
+
 async def fetch_solana_wallet(address: str) -> dict:
     """Fetch SOL balance + SPL tokens from a Solana wallet address."""
     try:
@@ -3053,10 +3093,11 @@ async def fetch_solana_wallet(address: str) -> dict:
             )
             token_accounts = r2.json().get("result", {}).get("value", [])
 
+        WSOL = "So11111111111111111111111111111111111111112"
         tokens = []
         if sol_balance > 0.001:
-            tokens.append({"symbol": "SOL", "balance": round(sol_balance, 6),
-                          "mint": "native", "decimals": 9})
+            tokens.append({"symbol": "SOL", "name": "Solana", "balance": round(sol_balance, 6),
+                          "mint": WSOL, "decimals": 9})
 
         for acc in token_accounts:
             info = acc.get("account", {}).get("data", {}).get("parsed", {}).get("info", {})
@@ -3064,12 +3105,21 @@ async def fetch_solana_wallet(address: str) -> dict:
             amount = info.get("tokenAmount", {})
             bal = float(amount.get("uiAmountString", "0") or "0")
             if bal > 0:
-                sym = SOL_TOKENS.get(mint, mint[:6] + "...")
-                tokens.append({"symbol": sym, "balance": round(bal, 6), "mint": mint,
-                               "decimals": amount.get("decimals", 0)})
+                sym = SOL_TOKENS.get(mint, mint[:4] + "…")
+                tokens.append({"symbol": sym, "name": "", "balance": round(bal, 6),
+                               "mint": mint, "decimals": amount.get("decimals", 0)})
 
-        return {"chain": "solana", "address": address,
-                "tokens": tokens, "token_count": len(tokens)}
+        # Enrichissement nom + symbole + prix + valeur $ via DexScreener
+        await _enrich_solana_tokens(tokens)
+        # SOL natif identifié proprement
+        for t in tokens:
+            if t["mint"] == WSOL:
+                t["symbol"] = "SOL"; t["name"] = t.get("name") or "Solana"
+        tokens.sort(key=lambda t: t.get("value") or 0, reverse=True)
+        total_value = round(sum((t.get("value") or 0) for t in tokens), 2)
+
+        return {"chain": "solana", "address": address, "tokens": tokens,
+                "token_count": len(tokens), "total_value": total_value}
     except Exception as e:
         logger.error(f"Solana wallet fetch error: {e}")
         raise HTTPException(400, f"Impossible de lire le wallet Solana: {str(e)}")
