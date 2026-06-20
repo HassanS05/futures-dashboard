@@ -37,6 +37,12 @@ try:
 except ImportError:
     HAS_OPENAI = False
 
+try:
+    import google.generativeai as genai_sdk
+    HAS_GEMINI = True
+except ImportError:
+    HAS_GEMINI = False
+
 # ══════════════════════════════════════════════════════════════
 #  CONFIG
 # ══════════════════════════════════════════════════════════════
@@ -64,8 +70,80 @@ ENV = load_env()
 SECRET_KEY = ENV.get("SECRET_KEY", "hr5invest-prod-secret-2024")
 ANTHROPIC_API_KEY = ENV.get("ANTHROPIC_API_KEY", "")
 OPENAI_API_KEY = ENV.get("OPENAI_API_KEY", "")
+GEMINI_API_KEY = ENV.get("GOOGLE_API_KEY", "") or ENV.get("GEMINI_API_KEY", "")
 DEFAULT_AI_PROVIDER = ENV.get("DEFAULT_AI_PROVIDER", "anthropic")
 COINGECKO_API_KEY = ENV.get("COINGECKO_API_KEY", "")
+
+# Per-provider models (overridable via .env)
+ANTHROPIC_MODEL = ENV.get("ANTHROPIC_MODEL", "claude-haiku-4-5")
+OPENAI_MODEL = ENV.get("OPENAI_MODEL", "gpt-4o")
+GEMINI_MODEL = ENV.get("GEMINI_MODEL", "gemini-1.5-pro")
+
+# Multi-model routing: each task maps to an ordered provider preference.
+# The router picks the first *configured & available* provider in the list.
+#   research/analysis/report -> Claude (deep reasoning)
+#   summary/explanation      -> Gemini (fast & cheap), then OpenAI
+AI_TASK_ROUTING = {
+    "research":    ["anthropic", "openai", "gemini"],
+    "analysis":    ["anthropic", "openai", "gemini"],
+    "report":      ["anthropic", "openai", "gemini"],
+    "chat":        ["anthropic", "openai", "gemini"],
+    "summary":     ["gemini", "openai", "anthropic"],
+    "explanation": ["gemini", "anthropic", "openai"],
+    "default":     [DEFAULT_AI_PROVIDER, "anthropic", "openai", "gemini"],
+}
+
+def _provider_available(name: str) -> bool:
+    if name == "anthropic":
+        return bool(ANTHROPIC_API_KEY and HAS_ANTHROPIC)
+    if name == "openai":
+        return bool(OPENAI_API_KEY and HAS_OPENAI)
+    if name == "gemini":
+        return bool(GEMINI_API_KEY and HAS_GEMINI)
+    return False
+
+def _resolve_provider(task: str = "default", override: str = "") -> str:
+    """Return the name of the best available provider for a task, or ''."""
+    if override and _provider_available(override):
+        return override
+    for name in AI_TASK_ROUTING.get(task, AI_TASK_ROUTING["default"]):
+        if _provider_available(name):
+            return name
+    return ""
+
+def ai_enabled() -> bool:
+    return any(_provider_available(p) for p in ("anthropic", "openai", "gemini"))
+
+async def ai_complete(prompt: str, *, system: str = "", max_tokens: int = 2000,
+                      task: str = "default", override: str = "") -> str:
+    """Unified non-streaming completion across Claude / OpenAI / Gemini.
+
+    Picks the model via task-based routing and returns plain text. Raises
+    RuntimeError if no provider is configured so callers can fall back.
+    """
+    provider = _resolve_provider(task, override)
+    if not provider:
+        raise RuntimeError("Aucun provider IA configuré (ANTHROPIC/OPENAI/GOOGLE).")
+    if provider == "anthropic":
+        client = anthropic_sdk.AsyncAnthropic(api_key=ANTHROPIC_API_KEY)
+        kwargs = {"model": ANTHROPIC_MODEL, "max_tokens": max_tokens,
+                  "messages": [{"role": "user", "content": prompt}]}
+        if system:
+            kwargs["system"] = system
+        msg = await client.messages.create(**kwargs)
+        return msg.content[0].text
+    if provider == "openai":
+        client = AsyncOpenAI(api_key=OPENAI_API_KEY)
+        msgs = ([{"role": "system", "content": system}] if system else []) + \
+               [{"role": "user", "content": prompt}]
+        resp = await client.chat.completions.create(
+            model=OPENAI_MODEL, messages=msgs, max_tokens=max_tokens)
+        return resp.choices[0].message.content
+    # gemini
+    genai_sdk.configure(api_key=GEMINI_API_KEY)
+    gm = genai_sdk.GenerativeModel(GEMINI_MODEL, system_instruction=system or None)
+    resp = await gm.generate_content_async(prompt)
+    return resp.text
 
 logger.add(LOGS_DIR / "hr5invest.log", rotation="10 MB", retention="7 days", level="INFO")
 
@@ -833,24 +911,10 @@ Retourne UNIQUEMENT un objet JSON valide, sans texte avant ou après, sans markd
 IMPORTANT: Toutes les valeurs textuelles doivent être sur une seule ligne (pas de retour à la ligne dans les strings JSON). Retourne UNIQUEMENT le JSON, rien d'autre."""
 
     try:
-        if DEFAULT_AI_PROVIDER == "anthropic" and ANTHROPIC_API_KEY and HAS_ANTHROPIC:
-            client = anthropic_sdk.AsyncAnthropic(api_key=ANTHROPIC_API_KEY)
-            msg = await client.messages.create(
-                model="claude-haiku-4-5",
-                max_tokens=8000,
-                messages=[{"role": "user", "content": prompt}]
-            )
-            text = msg.content[0].text
-        elif OPENAI_API_KEY and HAS_OPENAI:
-            client = AsyncOpenAI(api_key=OPENAI_API_KEY)
-            resp = await client.chat.completions.create(
-                model="gpt-4o",
-                messages=[{"role": "user", "content": prompt}],
-                max_tokens=8000
-            )
-            text = resp.choices[0].message.content
-        else:
+        if not ai_enabled():
             return {"error": "Configurez ANTHROPIC_API_KEY dans le fichier .env"}
+        # Deep fundamental analysis -> "analysis" task (Claude first).
+        text = await ai_complete(prompt, max_tokens=8000, task="analysis")
 
         try:
             result = _safe_json_loads(text)
@@ -918,26 +982,37 @@ Date : {datetime.now().strftime('%d/%m/%Y %H:%M')}
 {f'Contexte additionnel : {context}' if context else ''}"""
 
     try:
-        if DEFAULT_AI_PROVIDER == "anthropic" and ANTHROPIC_API_KEY and HAS_ANTHROPIC:
+        provider = _resolve_provider(task="chat")
+        if provider == "anthropic":
             client = anthropic_sdk.AsyncAnthropic(api_key=ANTHROPIC_API_KEY)
             async with client.messages.stream(
-                model="claude-haiku-4-5",
+                model=ANTHROPIC_MODEL,
                 max_tokens=3000,
                 system=system,
                 messages=messages
             ) as stream:
                 async for text in stream.text_stream:
                     yield f"data: {json.dumps({'content': text})}\n\n"
-        elif OPENAI_API_KEY and HAS_OPENAI:
+        elif provider == "openai":
             client = AsyncOpenAI(api_key=OPENAI_API_KEY)
             stream = await client.chat.completions.create(
-                model="gpt-4o",
+                model=OPENAI_MODEL,
                 messages=[{"role": "system", "content": system}] + messages,
                 max_tokens=3000, stream=True
             )
             async for chunk in stream:
                 if chunk.choices[0].delta.content:
                     yield f"data: {json.dumps({'content': chunk.choices[0].delta.content})}\n\n"
+        elif provider == "gemini":
+            genai_sdk.configure(api_key=GEMINI_API_KEY)
+            gm = genai_sdk.GenerativeModel(GEMINI_MODEL, system_instruction=system or None)
+            # Gemini expects {role, parts}; map our messages (user/assistant->model).
+            history = [{"role": "model" if m["role"] == "assistant" else "user",
+                        "parts": [m["content"]]} for m in messages]
+            stream = await gm.generate_content_async(history, stream=True)
+            async for chunk in stream:
+                if getattr(chunk, "text", ""):
+                    yield f"data: {json.dumps({'content': chunk.text})}\n\n"
         else:
             yield f"data: {json.dumps({'content': 'Configurez ANTHROPIC_API_KEY dans le fichier .env'})}\n\n"
     except Exception as e:
@@ -975,15 +1050,10 @@ Retourne UNIQUEMENT un JSON :
 
 IMPORTANT: Toutes les valeurs texte sur une seule ligne. Retourne UNIQUEMENT le JSON."""
     try:
-        if DEFAULT_AI_PROVIDER == "anthropic" and ANTHROPIC_API_KEY and HAS_ANTHROPIC:
-            client = anthropic_sdk.AsyncAnthropic(api_key=ANTHROPIC_API_KEY)
-            msg = await client.messages.create(
-                model="claude-haiku-4-5", max_tokens=4000,
-                messages=[{"role": "user", "content": prompt}]
-            )
-            return _safe_json_loads(msg.content[0].text)
-        else:
+        if not ai_enabled():
             return {"error": "Provider IA non configuré"}
+        text = await ai_complete(prompt, max_tokens=4000, task="analysis")
+        return _safe_json_loads(text)
     except Exception as e:
         logger.error(f"DCA plan error: {e}")
         return {"error": str(e)}
@@ -1076,9 +1146,7 @@ async def ai_analyze_portfolio(enriched: dict) -> dict:
     tv = enriched.get("total_value", 0) or 0
     tpnl_pct = enriched.get("total_pnl_pct", 0) or 0
 
-    has_ai = (DEFAULT_AI_PROVIDER == "anthropic" and ANTHROPIC_API_KEY and HAS_ANTHROPIC) \
-        or (OPENAI_API_KEY and HAS_OPENAI)
-    if not has_ai:
+    if not ai_enabled():
         return _fallback_portfolio_analysis(enriched, "clé API non configurée")
 
     lines = []
@@ -1120,18 +1188,7 @@ Couvre TOUTES les positions dans le tableau "positions". Réponds en français.
 IMPORTANT : toutes les valeurs texte sur une seule ligne. Retourne UNIQUEMENT le JSON."""
 
     try:
-        if DEFAULT_AI_PROVIDER == "anthropic" and ANTHROPIC_API_KEY and HAS_ANTHROPIC:
-            client = anthropic_sdk.AsyncAnthropic(api_key=ANTHROPIC_API_KEY)
-            msg = await client.messages.create(
-                model="claude-haiku-4-5", max_tokens=8000,
-                messages=[{"role": "user", "content": prompt}])
-            text = msg.content[0].text
-        else:
-            client = AsyncOpenAI(api_key=OPENAI_API_KEY)
-            resp = await client.chat.completions.create(
-                model="gpt-4o", max_tokens=8000,
-                messages=[{"role": "user", "content": prompt}])
-            text = resp.choices[0].message.content
+        text = await ai_complete(prompt, max_tokens=8000, task="analysis")
         result = _safe_json_loads(text)
         result["_source"] = "ai"
         return result
@@ -1407,6 +1464,19 @@ async def no_cache_html(request: Request, call_next):
 @app.get("/health")
 async def health():
     return {"status": "ok", "version": "2.0", "time": datetime.now().isoformat()}
+
+@app.get("/api/v1/ai/status")
+async def ai_status():
+    """Expose configured AI providers and the active task routing."""
+    return {
+        "enabled": ai_enabled(),
+        "providers": {
+            "anthropic": {"available": _provider_available("anthropic"), "model": ANTHROPIC_MODEL},
+            "openai": {"available": _provider_available("openai"), "model": OPENAI_MODEL},
+            "gemini": {"available": _provider_available("gemini"), "model": GEMINI_MODEL},
+        },
+        "routing": AI_TASK_ROUTING,
+    }
 
 @app.post("/api/v1/auth/register")
 async def register(req: RegisterRequest):
@@ -2268,10 +2338,9 @@ async def ai_magicband(req: dict, user=Depends(get_current_user)):
         "stop": levels.get("stop_loss"),
         "objectifs": [levels.get("target_1"), levels.get("target_2"), levels.get("target_3")],
     }
-    if not (DEFAULT_AI_PROVIDER == "anthropic" and ANTHROPIC_API_KEY and HAS_ANTHROPIC):
+    if not ai_enabled():
         return fallback
     try:
-        client = anthropic_sdk.AsyncAnthropic(api_key=ANTHROPIC_API_KEY)
         recent = "; ".join(f"{s['type']}@{s['price']}" for s in sigs[-6:])
         prompt = (
             f"Tu es analyste trading. Indicateur MagicBand pour {symbol}. "
@@ -2284,11 +2353,7 @@ async def ai_magicband(req: dict, user=Depends(get_current_user)):
             "achat (liste de 2 nombres = fourchette), stop (nombre), objectifs (liste de 3 nombres). "
             "Sois concret et actionnable."
         )
-        msg = await client.messages.create(
-            model="claude-haiku-4-5", max_tokens=900,
-            messages=[{"role": "user", "content": prompt}],
-        )
-        txt = msg.content[0].text
+        txt = await ai_complete(prompt, max_tokens=900, task="analysis")
         data = _safe_json_loads(txt)
         if data and data.get("commentaire"):
             return data
@@ -2363,9 +2428,8 @@ async def analyze_express(req: dict, user=Depends(get_current_user)):
         (f"RSI à {rsi} ({'survente' if rsi and rsi<30 else 'surachat' if rsi and rsi>70 else 'neutre'}). " if rsi is not None else "") +
         (f"Zone d'achat {levels.get('buy_zone_high')}–{levels.get('buy_zone_low')}, stop {levels.get('stop_loss')}, objectifs {levels.get('target_1')}/{levels.get('target_2')}." if levels else "")
     )
-    if DEFAULT_AI_PROVIDER == "anthropic" and ANTHROPIC_API_KEY and HAS_ANTHROPIC:
+    if ai_enabled():
         try:
-            client = anthropic_sdk.AsyncAnthropic(api_key=ANTHROPIC_API_KEY)
             prompt = (
                 "Tu es analyste marché. Voici des données RÉELLES calculées pour "
                 f"{symbol} :\n- Prix : {price}\n- " + "\n- ".join(facts) +
@@ -2377,11 +2441,7 @@ async def analyze_express(req: dict, user=Depends(get_current_user)):
                 "N'invente AUCUNE actualité, partenariat, chiffre, fondamental ou évènement. "
                 "Pas de spéculation non chiffrée. Réponds en texte brut (pas de JSON)."
             )
-            msg = await client.messages.create(
-                model="claude-haiku-4-5", max_tokens=350,
-                messages=[{"role": "user", "content": prompt}],
-            )
-            txt = (msg.content[0].text or "").strip()
+            txt = (await ai_complete(prompt, max_tokens=350, task="summary")).strip()
             if txt:
                 commentaire = txt
         except Exception as e:

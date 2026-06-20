@@ -1,4 +1,6 @@
 venv/
+.venv/
+.venv-hr5/
 __pycache__/
 *.pyc
 .env
