@@ -114,16 +114,7 @@ def _resolve_provider(task: str = "default", override: str = "") -> str:
 def ai_enabled() -> bool:
     return any(_provider_available(p) for p in ("anthropic", "openai", "gemini"))
 
-async def ai_complete(prompt: str, *, system: str = "", max_tokens: int = 2000,
-                      task: str = "default", override: str = "") -> str:
-    """Unified non-streaming completion across Claude / OpenAI / Gemini.
-
-    Picks the model via task-based routing and returns plain text. Raises
-    RuntimeError if no provider is configured so callers can fall back.
-    """
-    provider = _resolve_provider(task, override)
-    if not provider:
-        raise RuntimeError("Aucun provider IA configuré (ANTHROPIC/OPENAI/GOOGLE).")
+async def _complete_one(provider: str, prompt: str, system: str, max_tokens: int) -> str:
     if provider == "anthropic":
         client = anthropic_sdk.AsyncAnthropic(api_key=ANTHROPIC_API_KEY)
         kwargs = {"model": ANTHROPIC_MODEL, "max_tokens": max_tokens,
@@ -131,19 +122,42 @@ async def ai_complete(prompt: str, *, system: str = "", max_tokens: int = 2000,
         if system:
             kwargs["system"] = system
         msg = await client.messages.create(**kwargs)
-        return msg.content[0].text
+        return "".join(b.text for b in msg.content if getattr(b, "type", "") == "text")
     if provider == "openai":
         client = AsyncOpenAI(api_key=OPENAI_API_KEY)
         msgs = ([{"role": "system", "content": system}] if system else []) + \
                [{"role": "user", "content": prompt}]
         resp = await client.chat.completions.create(
             model=OPENAI_MODEL, messages=msgs, max_tokens=max_tokens)
-        return resp.choices[0].message.content
+        return resp.choices[0].message.content or ""
     # gemini
     genai_sdk.configure(api_key=GEMINI_API_KEY)
     gm = genai_sdk.GenerativeModel(GEMINI_MODEL, system_instruction=system or None)
     resp = await gm.generate_content_async(prompt)
-    return resp.text
+    return resp.text or ""
+
+async def ai_complete(prompt: str, *, system: str = "", max_tokens: int = 2000,
+                      task: str = "default", override: str = "") -> str:
+    """Unified non-streaming completion across Claude / OpenAI / Gemini, with
+    automatic fallback: tries each configured provider in task order and returns
+    the first non-empty answer. Raises RuntimeError only if all fail/empty."""
+    if override and _provider_available(override):
+        return await _complete_one(override, prompt, system, max_tokens)
+    order = [p for p in dict.fromkeys(AI_TASK_ROUTING.get(task, AI_TASK_ROUTING["default"]))
+             if _provider_available(p)]
+    if not order:
+        raise RuntimeError("Aucun provider IA configuré (ANTHROPIC/OPENAI/GOOGLE).")
+    last_err = None
+    for provider in order:
+        try:
+            out = await _complete_one(provider, prompt, system, max_tokens)
+            if out and out.strip():
+                return out
+            logger.warning(f"ai_complete: {provider} a renvoyé vide, fallback…")
+        except Exception as e:
+            last_err = e
+            logger.warning(f"ai_complete: {provider} a échoué ({e}); fallback…")
+    raise RuntimeError(f"Tous les providers IA ont échoué/vide: {last_err}")
 
 logger.add(LOGS_DIR / "hr5invest.log", rotation="10 MB", retention="7 days", level="INFO")
 
@@ -992,43 +1006,64 @@ Règles de communication :
 Date : {datetime.now().strftime('%d/%m/%Y %H:%M')}
 {f'Contexte additionnel : {context}' if context else ''}"""
 
-    try:
-        provider = _resolve_provider(task="chat")
+    async def _stream_one(provider: str):
+        """Yield text pieces from a single provider."""
         if provider == "anthropic":
             client = anthropic_sdk.AsyncAnthropic(api_key=ANTHROPIC_API_KEY)
             async with client.messages.stream(
-                model=ANTHROPIC_MODEL,
-                max_tokens=3000,
-                system=system,
-                messages=messages
+                model=ANTHROPIC_MODEL, max_tokens=3000, system=system, messages=messages
             ) as stream:
                 async for text in stream.text_stream:
-                    yield f"data: {json.dumps({'content': text})}\n\n"
+                    if text:
+                        yield text
         elif provider == "openai":
             client = AsyncOpenAI(api_key=OPENAI_API_KEY)
             stream = await client.chat.completions.create(
                 model=OPENAI_MODEL,
                 messages=[{"role": "system", "content": system}] + messages,
-                max_tokens=3000, stream=True
-            )
+                max_tokens=3000, stream=True)
             async for chunk in stream:
-                if chunk.choices[0].delta.content:
-                    yield f"data: {json.dumps({'content': chunk.choices[0].delta.content})}\n\n"
+                piece = chunk.choices[0].delta.content
+                if piece:
+                    yield piece
         elif provider == "gemini":
             genai_sdk.configure(api_key=GEMINI_API_KEY)
             gm = genai_sdk.GenerativeModel(GEMINI_MODEL, system_instruction=system or None)
-            # Gemini expects {role, parts}; map our messages (user/assistant->model).
             history = [{"role": "model" if m["role"] == "assistant" else "user",
                         "parts": [m["content"]]} for m in messages]
             stream = await gm.generate_content_async(history, stream=True)
             async for chunk in stream:
                 if getattr(chunk, "text", ""):
-                    yield f"data: {json.dumps({'content': chunk.text})}\n\n"
-        else:
-            yield f"data: {json.dumps({'content': 'Configurez ANTHROPIC_API_KEY dans le fichier .env'})}\n\n"
-    except Exception as e:
-        logger.error(f"AI stream error: {e}")
-        yield f"data: {json.dumps({'content': f'Erreur IA : {str(e)}'})}\n\n"
+                    yield chunk.text
+
+    # Ordered providers for chat, keeping only those configured.
+    order = [p for p in dict.fromkeys(AI_TASK_ROUTING.get("chat", AI_TASK_ROUTING["default"]))
+             if _provider_available(p)]
+    if not order:
+        yield f"data: {json.dumps({'content': 'Configurez une clé IA (ANTHROPIC_API_KEY / OPENAI_API_KEY / GOOGLE_API_KEY) dans le fichier .env'})}\n\n"
+        yield "data: [DONE]\n\n"
+        return
+
+    last_err = None
+    for provider in order:
+        produced = False
+        try:
+            async for piece in _stream_one(provider):
+                produced = True
+                yield f"data: {json.dumps({'content': piece})}\n\n"
+            if produced:
+                yield "data: [DONE]\n\n"
+                return
+            # réponse vide -> on tente le provider suivant
+            logger.warning(f"AI chat: {provider} a renvoyé une réponse vide, fallback…")
+        except Exception as e:
+            last_err = e
+            logger.warning(f"AI chat: provider {provider} a échoué ({e}); fallback…")
+            if produced:  # déjà streamé du contenu : on s'arrête là
+                yield "data: [DONE]\n\n"
+                return
+            # sinon on essaie le provider suivant
+    yield f"data: {json.dumps({'content': 'Erreur IA : ' + (str(last_err) if last_err else 'tous les modèles ont renvoyé une réponse vide. Vérifie tes clés/quotas dans .env.')})}\n\n"
     yield "data: [DONE]\n\n"
 
 async def generate_dca_plan(symbol: str, capital: float, horizon_months: int, risk: str) -> dict:
