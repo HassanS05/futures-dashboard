@@ -1578,6 +1578,26 @@ async def no_cache_html(request: Request, call_next):
 async def health():
     return {"status": "ok", "version": "2.0", "time": datetime.now().isoformat()}
 
+@app.get("/api/v1/debug/price/{symbol}")
+async def debug_price(symbol: str):
+    """Diagnostic (sans secret) : ce que chaque source renvoie pour un symbole.
+    Ex: /api/v1/debug/price/SPACEX"""
+    sym = symbol.upper()
+    cg = await fetch_crypto_prices([sym])
+    yf = await fetch_etf_data([sym])
+    cmc = await fetch_cmc_quotes([sym])
+    return {
+        "symbol": sym,
+        "keys_loaded": {
+            "coinmarketcap": bool(COINMARKETCAP_API_KEY),
+            "coingecko": bool(COINGECKO_API_KEY),
+        },
+        "coingecko": cg.get(sym),
+        "yahoo_finance": yf.get(sym),
+        "coinmarketcap": cmc.get(sym),
+        "note": "Le prix retenu = CoinGecko/Yahoo, sinon CoinMarketCap.",
+    }
+
 @app.get("/api/v1/ai/status")
 async def ai_status():
     """Expose configured AI providers and the active task routing."""
