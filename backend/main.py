@@ -3669,7 +3669,10 @@ async def fetch_cex_balances(exchange_id: str, key: str, secret: str, password: 
         # ccxt synchrone dans un thread : son client async (aiohttp) échoue sur ce serveur
         bal = await asyncio.to_thread(_cex_balances_sync, exchange_id, key, secret, password)
     except ccxt.AuthenticationError as e:
-        raise HTTPException(400, f"Authentification {exchange_id} refusée → {str(e)[:180] or 'clé/secret invalide'}")
+        raise HTTPException(400,
+            f"Clé {exchange_id} refusée ({str(e)[:90]}). Vérifie : 1) la Clé API ET le "
+            f"Secret (sur Kraken, le « Private Key ») sont bien copiés en entier, sans espace ; "
+            f"2) la clé a la permission « Query Funds » ; 3) clé non expirée. Recrée-la si besoin.")
     except ccxt.PermissionDenied as e:
         raise HTTPException(400, f"Permissions insuffisantes ({exchange_id}) — autorisez « Query Funds/Balance ». Détail: {str(e)[:140]}")
     except Exception as e:
@@ -3767,13 +3770,14 @@ async def fetch_wallet(req: WalletConnectRequest, user=Depends(get_current_user)
     elif req.chain == "binance":
         if not req.api_key or not req.api_secret:
             raise HTTPException(400, "Clé API et secret Binance requis")
-        result = await fetch_binance_balances(req.api_key, req.api_secret)
+        result = await fetch_binance_balances(req.api_key.strip(), req.api_secret.strip())
     elif req.chain == "exchange":
         if not req.exchange:
             raise HTTPException(400, "Sélectionnez un exchange")
         if not req.api_key or not req.api_secret:
             raise HTTPException(400, "Clé API et secret requis")
-        result = await fetch_cex_balances(req.exchange, req.api_key, req.api_secret, req.api_password)
+        result = await fetch_cex_balances(req.exchange, req.api_key.strip(), req.api_secret.strip(),
+                                          (req.api_password or "").strip())
     elif req.chain == "evm":
         if not req.address:
             raise HTTPException(400, "Adresse EVM requise (0x...)")
