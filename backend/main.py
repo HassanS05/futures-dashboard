@@ -73,6 +73,7 @@ OPENAI_API_KEY = ENV.get("OPENAI_API_KEY", "")
 GEMINI_API_KEY = ENV.get("GOOGLE_API_KEY", "") or ENV.get("GEMINI_API_KEY", "")
 DEFAULT_AI_PROVIDER = ENV.get("DEFAULT_AI_PROVIDER", "anthropic")
 COINGECKO_API_KEY = ENV.get("COINGECKO_API_KEY", "")
+COINMARKETCAP_API_KEY = ENV.get("COINMARKETCAP_API_KEY", "") or ENV.get("CMC_API_KEY", "")
 
 # Per-provider models (overridable via .env)
 ANTHROPIC_MODEL = ENV.get("ANTHROPIC_MODEL", "claude-haiku-4-5")
@@ -510,6 +511,49 @@ PRICE_BLACKLIST = {
     "MARCOPOLO", "DLM", "WRENG", "ARUSSELL", "EVAINU", "BLACK MAMBA",
 }
 
+async def fetch_cmc_quotes(symbols: List[str]) -> dict:
+    """Prix via CoinMarketCap (repli pour les actifs absents de CoinGecko/Yahoo,
+    ex. RWA tokenisés comme SPACEX). Clé lue dans .env (COINMARKETCAP_API_KEY).
+    Renvoie {SYMBOL: {price, change_24h, market_cap, volume_24h}}."""
+    if not symbols or not COINMARKETCAP_API_KEY:
+        return {}
+    # Alias quand le symbole du portefeuille diffère du ticker CMC (RWA tokenisés).
+    CMC_ALIAS = {"SPACEX": "SPCX"}
+    syms = sorted({s.upper() for s in symbols})
+    query_to_orig = {CMC_ALIAS.get(s, s): s for s in syms}
+    cache_key = "cmc_" + "_".join(syms)
+    if cache_key in _cache and time.time() - _cache[cache_key]["ts"] < 120:
+        return _cache[cache_key]["data"]
+    out = {}
+    try:
+        async with httpx.AsyncClient(timeout=12) as client:
+            r = await client.get(
+                "https://pro-api.coinmarketcap.com/v1/cryptocurrency/quotes/latest",
+                params={"symbol": ",".join(query_to_orig.keys()), "convert": "USD"},
+                headers={"X-CMC_PRO_API_KEY": COINMARKETCAP_API_KEY,
+                         "Accept": "application/json"})
+            payload = r.json().get("data", {}) or {}
+        for qsym, orig in query_to_orig.items():
+            sym = orig
+            entry = payload.get(qsym)
+            if isinstance(entry, list):
+                entry = entry[0] if entry else None
+            if not entry:
+                continue
+            q = (entry.get("quote") or {}).get("USD") or {}
+            if q.get("price") is not None:
+                out[sym] = {
+                    "price": q.get("price") or 0,
+                    "change_24h": q.get("percent_change_24h") or 0,
+                    "market_cap": q.get("market_cap") or 0,
+                    "volume_24h": q.get("volume_24h") or 0,
+                }
+        _cache[cache_key] = {"data": out, "ts": time.time()}
+    except Exception as e:
+        logger.warning(f"CoinMarketCap quotes error: {e}")
+    return out
+
+
 async def fetch_crypto_prices(symbols: List[str]) -> dict:
     if not symbols:
         return {}
@@ -573,6 +617,12 @@ async def fetch_crypto_prices(symbols: List[str]) -> dict:
                         }
             except Exception as e:
                 logger.warning(f"price fallback error: {e}")
+        # ── Repli final CoinMarketCap (RWA tokenisés type SPACEX, etc.) ──
+        still = [s.upper() for s in symbols if s.upper() not in result]
+        if still and COINMARKETCAP_API_KEY:
+            cmc = await fetch_cmc_quotes(still)
+            for s, d in cmc.items():
+                result[s] = d
         _cache[cache_key] = {"data": result, "ts": time.time()}
         return result
     except Exception as e:
@@ -1349,6 +1399,11 @@ async def enrich_portfolio(portfolio_id: int, positions_rows: list) -> dict:
         crypto_prices = await fetch_crypto_prices(crypto_syms)
     if etf_syms:
         etf_prices = await fetch_etf_data(etf_syms)
+        # Repli CoinMarketCap pour actions/ETF absents de Yahoo (ex. RWA tokenisés : SPACEX)
+        missing_etf = [s.upper() for s in etf_syms if s.upper() not in etf_prices]
+        if missing_etf and COINMARKETCAP_API_KEY:
+            for s, d in (await fetch_cmc_quotes(missing_etf)).items():
+                etf_prices[s] = d
 
     total_value = 0
     total_cost = 0
