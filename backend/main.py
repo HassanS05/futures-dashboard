@@ -517,8 +517,8 @@ async def fetch_cmc_quotes(symbols: List[str]) -> dict:
     Renvoie {SYMBOL: {price, change_24h, market_cap, volume_24h}}."""
     if not symbols or not COINMARKETCAP_API_KEY:
         return {}
-    # Alias quand le symbole du portefeuille diffère du ticker CMC (RWA tokenisés).
-    CMC_ALIAS = {"SPACEX": "SPCX"}
+    # Alias quand le symbole du portefeuille diffère du ticker CMC (RWA / xStocks).
+    CMC_ALIAS = {"SPACEX": "SPCX", "SPCXX": "SPCX", "SPCXXX": "SPCX"}
     syms = sorted({s.upper() for s in symbols})
     query_to_orig = {CMC_ALIAS.get(s, s): s for s in syms}
     cache_key = "cmc_" + "_".join(syms)
