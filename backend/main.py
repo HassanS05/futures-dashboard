@@ -3797,7 +3797,8 @@ async def fetch_base_tokens_blockscout(address: str) -> list:
                     bal = int(item.get("value", "0") or "0") / (10 ** min(dec, 18))
                     if sym and bal > 0:
                         tok = {"symbol": sym, "balance": round(bal, 8),
-                               "contract": token.get("address", ""),
+                               "contract": (token.get("address") or token.get("address_hash")
+                                            or token.get("address_hash_string") or ""),
                                "decimals": dec, "name": token.get("name", sym)}
                         # Blockscout fournit souvent le prix USD -> on l'utilise direct
                         rate = token.get("exchange_rate")
@@ -3832,15 +3833,17 @@ async def fetch_base_wallet(address: str) -> dict:
                 await fetch_base_tokens_ankr(address)):
         for t in src:
             c = (t.get("contract") or "").lower()
-            if not c or c == "native":
+            if c == "native":
                 continue
-            if c not in by_contract:
-                by_contract[c] = t
+            # Clé de dédup : le contrat si présent, sinon le symbole (Blockscout ne
+            # renvoie pas toujours l'adresse mais fournit déjà le prix -> on garde !)
+            key = c or ("sym:" + (t.get("symbol") or "").upper())
+            if key not in by_contract:
+                by_contract[key] = t
             else:
-                # complète les infos manquantes (prix Ankr, nom…)
                 for k, v in t.items():
-                    if v and not by_contract[c].get(k):
-                        by_contract[c][k] = v
+                    if v and not by_contract[key].get(k):
+                        by_contract[key][k] = v
     tokens.extend(by_contract.values())
 
     # 3. Pricing par CONTRAT : DexScreener d'abord, puis CoinGecko en complément
