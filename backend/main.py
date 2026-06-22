@@ -1765,6 +1765,21 @@ async def default_portfolio(user=Depends(get_current_user)):
     return enriched
 
 
+@app.post("/api/v1/portfolios/default/clear")
+async def clear_default_portfolio(user=Depends(get_current_user)):
+    """Supprime TOUTES les positions du portefeuille par défaut (reset propre)."""
+    conn = get_db()
+    pf = conn.execute("SELECT id FROM portfolios WHERE user_id=? AND is_default=1", (user["id"],)).fetchone() \
+        or conn.execute("SELECT id FROM portfolios WHERE user_id=? LIMIT 1", (user["id"],)).fetchone()
+    if not pf:
+        conn.close()
+        return {"deleted": 0}
+    cur = conn.execute("DELETE FROM portfolio_positions WHERE portfolio_id=?", (pf["id"],))
+    conn.commit()
+    n = cur.rowcount
+    conn.close()
+    return {"deleted": n}
+
 @app.get("/api/v1/portfolios/default/equity-curve")
 async def default_equity_curve(days: int = 90, user=Depends(get_current_user)):
     """Reconstitue la valeur du portefeuille sur `days` jours à partir de
@@ -3267,7 +3282,8 @@ async def _enrich_solana_tokens(tokens: list) -> None:
         logger.warning(f"DexScreener enrich error: {e}")
     for t in tokens:
         info = best.get(t["mint"])
-        if info:
+        # Ignore les pools à très faible liquidité (souvent des tokens scam)
+        if info and (info.get("liq") or 0) >= 1000:
             if info.get("symbol"):
                 t["symbol"] = info["symbol"]
             t["name"] = info.get("name") or t.get("name") or ""
@@ -3803,18 +3819,24 @@ class WalletConnectRequest(BaseModel):
 
 _STABLE_SYMS = {"USDT","USDC","BUSD","DAI","TUSD","USDS","FDUSD","PYUSD","FRAX","GUSD","USDC.E","USDBC"}
 
-async def _import_wallet_result(conn, pid: int, result: dict, source: str) -> int:
-    """Upsert les tokens/balances d'un wallet/CEX dans le portefeuille.
-    Lit le prix dans cet ordre: CoinGecko/CMC live -> prix fourni (DEX/DexScreener)
-    -> valeur/quantité. Corrige les memecoins DEX qui restaient à $0."""
+_DUST_MIN_USD = 0.50  # en dessous : poussière/scam, on n'importe pas (DEX)
+
+async def _import_wallet_result(conn, pid: int, result: dict, source: str,
+                                from_cex: bool = False) -> int:
+    """Upsert les tokens/balances dans le portefeuille.
+    - CEX : symboles canoniques -> prix par symbole (CoinGecko/CMC) fiable.
+    - DEX : prix UNIQUEMENT par contrat (fourni par le fetcher/DexScreener).
+      JAMAIS par symbole (sinon un scam 'ABTC' récupère le prix du BTC).
+      Filtre la poussière/scam (< $0.50) pour ne pas polluer le portefeuille."""
     tokens = result.get("tokens") or result.get("balances") or []
-    syms = [(t.get("symbol") or "").upper() for t in tokens
-            if (t.get("symbol") or "").upper() not in _STABLE_SYMS]
     prices = {}
-    try:
-        prices = await fetch_crypto_prices(syms) if syms else {}
-    except Exception:
-        pass
+    if from_cex:
+        syms = [(t.get("symbol") or "").upper() for t in tokens
+                if (t.get("symbol") or "").upper() not in _STABLE_SYMS]
+        try:
+            prices = await fetch_crypto_prices(syms) if syms else {}
+        except Exception:
+            pass
     imported = 0
     for t in tokens:
         sym = (t.get("symbol") or "").upper().strip()
@@ -3823,13 +3845,18 @@ async def _import_wallet_result(conn, pid: int, result: dict, source: str) -> in
             continue
         if sym in _STABLE_SYMS:
             price = 1.0
-        else:
+        elif from_cex:
             price = (prices.get(sym, {}) or {}).get("price", 0) \
                 or float(t.get("price") or t.get("price_usd") or 0)
+        else:
+            # DEX : seulement le prix par contrat (jamais par symbole)
+            price = float(t.get("price") or t.get("price_usd") or 0)
             if not price and bal:
                 v = t.get("value") or t.get("usd_value")
-                if v:
-                    price = float(v) / bal
+                price = (float(v) / bal) if v else 0
+            # Anti-poussière/scam : on n'importe pas les valeurs négligeables/non prixées
+            if price * bal < _DUST_MIN_USD:
+                continue
         existing = conn.execute(
             "SELECT id FROM portfolio_positions WHERE portfolio_id=? AND symbol=?",
             (pid, sym)).fetchone()
@@ -3904,7 +3931,9 @@ async def fetch_wallet(req: WalletConnectRequest, user=Depends(get_current_user)
         source = "Binance" if req.chain == "binance" else (
             req.exchange.capitalize() if req.chain == "exchange" and req.exchange
             else req.chain.capitalize())
-        result["imported_to_portfolio"] = await _import_wallet_result(conn, req.portfolio_id, result, source)
+        result["imported_to_portfolio"] = await _import_wallet_result(
+            conn, req.portfolio_id, result, source,
+            from_cex=req.chain in ("binance", "exchange"))
         conn.close()
 
     return result
@@ -3940,7 +3969,7 @@ async def cex_sync(user=Depends(get_current_user)):
         except Exception as e:
             errors.append(f"{ex}: {str(e)[:120]}")
             continue
-        imported += await _import_wallet_result(conn, pid, res, ex.capitalize())
+        imported += await _import_wallet_result(conn, pid, res, ex.capitalize(), from_cex=True)
         conn.execute("UPDATE cex_connections SET last_sync=datetime('now') WHERE id=?", (c["id"],))
     conn.commit()
     conn.close()
@@ -4045,7 +4074,7 @@ async def sync_all(user=Depends(get_current_user)):
             res = await fetch_cex_balances(c["exchange"], dec_secret(c["api_key_enc"]),
                                            dec_secret(c["api_secret_enc"]),
                                            dec_secret(c["api_password_enc"]))
-            imported += await _import_wallet_result(conn, pid, res, c["exchange"].capitalize())
+            imported += await _import_wallet_result(conn, pid, res, c["exchange"].capitalize(), from_cex=True)
             sources.append(c["exchange"])
             conn.execute("UPDATE cex_connections SET last_sync=datetime('now') WHERE id=?", (c["id"],))
         except Exception as e:

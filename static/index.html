@@ -734,6 +734,7 @@ tbody tr:hover td{background:rgba(94,124,226,.05);}
       </label>
       <button @click="showAddPos=true" class="btn btn-ghost btn-sm">+ Position</button>
       <button @click="showAddTxModal=true" class="btn btn-ghost btn-sm">+ Transaction</button>
+      <button @click="clearPortfolio()" class="btn btn-ghost btn-sm" style="color:var(--rd);border-color:rgba(239,68,68,.3);" :disabled="pfClearing" title="Supprime toutes les positions (pour repartir propre)">🗑 Vider</button>
     </div>
   </div>
 
@@ -3743,6 +3744,17 @@ function app() { return {
         alert(msg); }
     }catch(e){ alert('Erreur sync: '+e.message); }
     finally{ this.cexSyncing=false; }
+  },
+  pfClearing:false,
+  async clearPortfolio(){
+    if(!confirm('Supprimer TOUTES les positions du portefeuille ? (utile pour repartir propre avant une resynchro)')) return;
+    this.pfClearing=true;
+    try{
+      const r=await this.api('POST','/api/v1/portfolios/default/clear',{});
+      await this.loadPortfolio(); this.loadEquityCurve();
+      alert('🗑 '+(r.deleted||0)+' positions supprimées. Tu peux maintenant resynchroniser proprement.');
+    }catch(e){ alert('Erreur: '+e.message); }
+    finally{ this.pfClearing=false; }
   },
   async connectWallet(chain){
     const f=this.walletForms[chain];
