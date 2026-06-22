@@ -1462,20 +1462,26 @@ class SimTradeRequest(BaseModel):
 # ══════════════════════════════════════════════════════════════
 #  PORTFOLIO HELPERS
 # ══════════════════════════════════════════════════════════════
-_DEX_SOURCES = {"solana", "ethereum", "base", "bnb", "bsc", "evm", "polygon",
-                "arbitrum", "optimism", "avalanche", "fantom"}
+# Plateformes centralisées : leurs symboles sont canoniques -> prix par symbole OK.
+_CEX_SOURCES = {"binance", "kraken", "coinbase", "bybit", "okx", "kucoin",
+                "bitget", "gate", "gateio", "mexc", "htx", "huobi", "bitfinex",
+                "bitstamp", "gemini", "crypto.com", "cex"}
 
 def _is_dex_position(p: dict) -> bool:
     """Un token issu d'un wallet on-chain (DEX) : son prix vient du CONTRAT,
-    jamais du symbole (un scam 'ABTC' ne doit pas hériter du prix du BTC)."""
+    jamais du symbole (un scam 'ABTC' ne doit PAS hériter du prix du BTC).
+    Règle robuste : tout ce qui est synchronisé et qui n'est PAS un CEX connu
+    est considéré on-chain (couvre Phantom/Uniswap/Base/… et données héritées)."""
     if (p.get("price_source") or "") == "dex":
         return True
+    if (p.get("price_source") or "") == "cex":
+        return False
     if (p.get("contract_address") or "").strip():
         return True
-    # Données héritées (avant la colonne price_source) : on déduit via la source de sync
     note = (p.get("notes") or "").strip().lower()
     if note.startswith("sync "):
-        return note[5:].split()[0] in _DEX_SOURCES
+        src = note[5:].split()[0] if len(note) > 5 else ""
+        return src not in _CEX_SOURCES   # synchronisé & non-CEX => on-chain
     return False
 
 async def enrich_portfolio(portfolio_id: int, positions_rows: list) -> dict:
@@ -1707,6 +1713,38 @@ async def debug_price(symbol: str):
         "coinmarketcap": cmc.get(sym),
         "note": "Le prix retenu = CoinGecko/Yahoo, sinon CoinMarketCap.",
     }
+
+@app.get("/api/v1/debug/portfolio")
+async def debug_portfolio():
+    """Diagnostic (sans secret) : chaque position du portefeuille par défaut,
+    triée par valeur, avec sa classification (DEX vs symbole) et sa source.
+    Ouvre simplement /api/v1/debug/portfolio dans le navigateur."""
+    conn = get_db()
+    pf = conn.execute("SELECT id FROM portfolios WHERE is_default=1 LIMIT 1").fetchone() \
+        or conn.execute("SELECT id FROM portfolios LIMIT 1").fetchone()
+    if not pf:
+        conn.close()
+        return {"error": "aucun portefeuille"}
+    rows = conn.execute("SELECT * FROM portfolio_positions WHERE portfolio_id=?",
+                        (pf["id"],)).fetchall()
+    conn.close()
+    enriched = await enrich_portfolio(pf["id"], rows)
+    items = []
+    for p in enriched["positions"]:
+        items.append({
+            "symbol": p.get("symbol"),
+            "qty": p.get("quantity"),
+            "price": p.get("current_price"),
+            "value": round(p.get("value") or 0, 2),
+            "is_dex": _is_dex_position(p),
+            "price_source": p.get("price_source") or "",
+            "contract": (p.get("contract_address") or "")[:14],
+            "notes": p.get("notes") or "",
+        })
+    items.sort(key=lambda x: x["value"], reverse=True)
+    return {"total_value": round(enriched["total_value"], 2),
+            "position_count": len(items),
+            "top_positions": items[:15]}
 
 @app.get("/api/v1/ai/status")
 async def ai_status():
