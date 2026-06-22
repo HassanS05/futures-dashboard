@@ -3751,9 +3751,20 @@ async def fetch_base_tokens_blockscout(address: str) -> list:
                     dec = int(token.get("decimals") or "18")
                     bal = int(item.get("value", "0") or "0") / (10 ** min(dec, 18))
                     if sym and bal > 0:
-                        tokens.append({"symbol": sym, "balance": round(bal, 8),
-                                       "contract": token.get("address", ""),
-                                       "decimals": dec, "name": token.get("name", sym)})
+                        tok = {"symbol": sym, "balance": round(bal, 8),
+                               "contract": token.get("address", ""),
+                               "decimals": dec, "name": token.get("name", sym)}
+                        # Blockscout fournit souvent le prix USD -> on l'utilise direct
+                        rate = token.get("exchange_rate")
+                        if rate:
+                            try:
+                                px = float(rate)
+                                if px > 0:
+                                    tok["price"] = px
+                                    tok["value"] = round(bal * px, 2)
+                            except (TypeError, ValueError):
+                                pass
+                        tokens.append(tok)
     except Exception as e:
         logger.warning(f"Blockscout Base error: {e}")
     return tokens
