@@ -1762,7 +1762,16 @@ async def debug_wallet(chain: str, address: str, evm_chain: str = "eth"):
             "contract": (t.get("contract") or t.get("mint") or "")[:18],
             "name": t.get("name") or ""} for t in toks]
     out.sort(key=lambda x: x["value"] or 0, reverse=True)
-    return {"chain": chain, "address": address, "token_count": len(out), "tokens": out}
+    result = {"chain": chain, "address": address, "token_count": len(out), "tokens": out}
+    # Pour Base : montre aussi la liste BRUTE (avant pricing/filtre) pour diagnostiquer
+    if chain.lower() == "base":
+        try:
+            raw = await fetch_base_tokens_blockscout(address)
+            result["raw_blockscout_count"] = len(raw)
+            result["raw_blockscout_symbols"] = [t.get("symbol") for t in raw][:40]
+        except Exception as e:
+            result["raw_blockscout_error"] = str(e)
+    return result
 
 @app.get("/api/v1/ai/status")
 async def ai_status():
@@ -3525,7 +3534,7 @@ async def fetch_base_tokens_ankr(address: str) -> list:
                     "params": {
                         "blockchain": ["base"],
                         "walletAddress": address,
-                        "onlyWhitelisted": True,
+                        "onlyWhitelisted": False,
                         "pageSize": 100
                     }, "id": 1
                 },
@@ -3686,6 +3695,28 @@ async def fetch_ethereum_wallet(address: str, etherscan_key: str = "") -> dict:
     return {"chain":"ethereum","address":address,
             "tokens":tokens,"token_count":len(tokens)}
 
+async def fetch_base_tokens_blockscout(address: str) -> list:
+    """Liste COMPLÈTE des ERC-20 d'une adresse sur Base via Blockscout (sans clé)."""
+    tokens = []
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            r = await client.get(
+                f"https://base.blockscout.com/api/v2/addresses/{address}/tokens",
+                params={"type": "ERC-20"}, headers={"Accept": "application/json"})
+            if r.status_code == 200:
+                for item in r.json().get("items", []):
+                    token = item.get("token", {})
+                    sym = (token.get("symbol") or "").upper()
+                    dec = int(token.get("decimals") or "18")
+                    bal = int(item.get("value", "0") or "0") / (10 ** min(dec, 18))
+                    if sym and bal > 0:
+                        tokens.append({"symbol": sym, "balance": round(bal, 8),
+                                       "contract": token.get("address", ""),
+                                       "decimals": dec, "name": token.get("name", sym)})
+    except Exception as e:
+        logger.warning(f"Blockscout Base error: {e}")
+    return tokens
+
 async def fetch_base_wallet(address: str) -> dict:
     """Fetch ETH + token balances on Base chain (chain ID 8453)."""
     tokens = []
@@ -3694,52 +3725,28 @@ async def fetch_base_wallet(address: str) -> dict:
     eth_balance = await fetch_evm_balance(address, BASE_RPCS)
     if eth_balance > 0.0000001:
         tokens.append({"symbol": "ETH", "balance": round(eth_balance, 8),
-                       "contract": "native", "decimals": 18,
-                       "usd_value": 0, "price_usd": 0})
+                       "contract": "native", "decimals": 18})
 
-    # 2. Try Ankr multi-chain free API (best free option for Base)
-    ankr_tokens = await fetch_base_tokens_ankr(address)
-    if ankr_tokens:
-        # Filter out ETH duplicate if Ankr returned it
-        seen_syms = {"ETH"} if eth_balance > 0 else set()
-        for t in ankr_tokens:
-            sym = t.get("symbol", "").upper()
-            if sym and sym not in seen_syms:
-                seen_syms.add(sym)
-                tokens.append(t)
-    else:
-        # 3. Blockscout free public API for Base (no key needed)
-        try:
-            async with httpx.AsyncClient(timeout=15) as client:
-                r = await client.get(
-                    f"https://base.blockscout.com/api/v2/addresses/{address}/tokens",
-                    params={"type": "ERC-20"},
-                    headers={"Accept": "application/json"}
-                )
-                if r.status_code == 200:
-                    data = r.json()
-                    for item in data.get("items", []):
-                        token = item.get("token", {})
-                        sym = (token.get("symbol") or "").upper()
-                        dec = int(token.get("decimals") or "18")
-                        raw_val = item.get("value", "0") or "0"
-                        bal = int(raw_val) / (10 ** min(dec, 18))
-                        if sym and bal > 0:
-                            tokens.append({
-                                "symbol": sym,
-                                "balance": round(bal, 8),
-                                "contract": token.get("address", ""),
-                                "decimals": dec,
-                                "usd_value": 0,
-                                "price_usd": 0,
-                                "name": token.get("name", sym),
-                            })
-        except Exception as e:
-            logger.warning(f"Blockscout Base fallback error: {e}")
+    # 2. Liste des ERC-20 : Blockscout (liste complète) + Ankr (prix), fusion par contrat.
+    #    Blockscout garantit qu'on récupère TOUS les tokens (Toshi/Mochi inclus),
+    #    Ankr n'en remontait qu'une partie / les whitelistait trop agressivement.
+    by_contract: dict = {}
+    for src in (await fetch_base_tokens_blockscout(address),
+                await fetch_base_tokens_ankr(address)):
+        for t in src:
+            c = (t.get("contract") or "").lower()
+            if not c or c == "native":
+                continue
+            if c not in by_contract:
+                by_contract[c] = t
+            else:
+                # complète les infos manquantes (prix Ankr, nom…)
+                for k, v in t.items():
+                    if v and not by_contract[c].get(k):
+                        by_contract[c][k] = v
+    tokens.extend(by_contract.values())
 
-    # 4. Pricing FIABLE par CONTRAT via DexScreener (les memecoins Base type
-    #    Toshi/Mochi ont des pools liquides ; la résolution par symbole CoinGecko
-    #    échouait et renvoyait $0). Filtre aussi le spam (airdrops sans liquidité).
+    # 3. Pricing FIABLE par CONTRAT via DexScreener (Toshi/Mochi ont des pools liquides).
     await _enrich_dex_tokens(tokens, "base", addr_field="contract")
     # ETH natif : prix par symbole (pas de contrat)
     native = [t for t in tokens if (t.get("contract") or "") == "native"]
