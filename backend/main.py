@@ -1763,12 +1763,57 @@ async def debug_wallet(chain: str, address: str, evm_chain: str = "eth"):
             "name": t.get("name") or ""} for t in toks]
     out.sort(key=lambda x: x["value"] or 0, reverse=True)
     result = {"chain": chain, "address": address, "token_count": len(out), "tokens": out}
-    # Pour Base : montre aussi la liste BRUTE (avant pricing/filtre) pour diagnostiquer
+    # Pour Base : montre la liste BRUTE + sonde chaque source de prix pour
+    # comprendre laquelle marche sur cet hôte (Blockscout/DexScreener/CoinGecko).
     if chain.lower() == "base":
         try:
             raw = await fetch_base_tokens_blockscout(address)
             result["raw_blockscout_count"] = len(raw)
-            result["raw_blockscout_symbols"] = [t.get("symbol") for t in raw][:40]
+            result["raw_blockscout"] = [
+                {"symbol": t.get("symbol"),
+                 "contract": (t.get("contract") or "")[:18],
+                 "blockscout_price": t.get("price") or 0,
+                 "balance": t.get("balance")}
+                for t in raw][:12]
+            # Sonde DexScreener + CoinGecko sur les 4 premiers tokens réels
+            probe = [t for t in raw if (t.get("contract") or "")][:4]
+            ds = dict(probe and {})
+            cg = {}
+            contracts = [t["contract"] for t in probe]
+            if contracts:
+                # DexScreener
+                try:
+                    async with httpx.AsyncClient(timeout=12) as c:
+                        rr = await c.get("https://api.dexscreener.com/latest/dex/tokens/"
+                                         + ",".join(contracts))
+                        result["dexscreener_status"] = rr.status_code
+                        pairs = (rr.json().get("pairs") or []) if rr.status_code == 200 else []
+                        for p in pairs:
+                            if p.get("chainId") == "base":
+                                a = (p.get("baseToken") or {}).get("address", "").lower()
+                                ds[a] = p.get("priceUsd")
+                except Exception as e:
+                    result["dexscreener_error"] = str(e)[:120]
+                # CoinGecko par contrat
+                try:
+                    headers = {"x-cg-demo-api-key": COINGECKO_API_KEY} if COINGECKO_API_KEY else {}
+                    async with httpx.AsyncClient(timeout=12) as c:
+                        rr = await c.get(
+                            "https://api.coingecko.com/api/v3/simple/token_price/base",
+                            params={"contract_addresses": ",".join(contracts),
+                                    "vs_currencies": "usd"}, headers=headers)
+                        result["coingecko_status"] = rr.status_code
+                        if rr.status_code == 200:
+                            for a, d in (rr.json() or {}).items():
+                                cg[a.lower()] = d.get("usd")
+                except Exception as e:
+                    result["coingecko_error"] = str(e)[:120]
+            result["price_probe"] = [
+                {"symbol": t["symbol"],
+                 "blockscout": t.get("price") or 0,
+                 "dexscreener": ds.get((t["contract"]).lower()),
+                 "coingecko": cg.get((t["contract"]).lower())}
+                for t in probe]
         except Exception as e:
             result["raw_blockscout_error"] = str(e)
     return result
