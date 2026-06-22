@@ -3251,25 +3251,26 @@ SOL_TOKENS = {
     "mb1eu7TzEc71KxDpsmsKoucSSuuoGLv1drys1oP2jh6": "MOBILE",
 }
 
-async def _enrich_solana_tokens(tokens: list) -> None:
-    """Resolve real symbol/name/price/value for SPL tokens via DexScreener
-    (indexes Solana memecoins). Mutates the list in place; best-effort."""
-    mints = list({t["mint"] for t in tokens if t.get("mint") and t["mint"] != "native"})
-    if not mints:
+async def _enrich_dex_tokens(tokens: list, chain_id: str, addr_field: str = "contract") -> None:
+    """Resolve symbol/name/price/value by CONTRACT via DexScreener for any chain
+    (solana, base, ethereum…). Picks the highest-liquidity pair per token and
+    ignores low-liquidity pools (scam filter). Mutates the list in place."""
+    addrs = list({(t.get(addr_field) or "") for t in tokens
+                  if t.get(addr_field) and t.get(addr_field) != "native"})
+    if not addrs:
         return
     best: dict = {}
     try:
         async with httpx.AsyncClient(timeout=10) as client:
-            # DexScreener accepte jusqu'à 30 adresses séparées par des virgules
-            for i in range(0, len(mints), 30):
-                chunk = mints[i:i + 30]
+            for i in range(0, len(addrs), 30):
+                chunk = addrs[i:i + 30]
                 r = await client.get(
                     "https://api.dexscreener.com/latest/dex/tokens/" + ",".join(chunk))
                 for p in (r.json().get("pairs") or []):
-                    if p.get("chainId") != "solana":
+                    if p.get("chainId") != chain_id:
                         continue
                     bt = p.get("baseToken") or {}
-                    m = bt.get("address")
+                    m = (bt.get("address") or "").lower()
                     liq = ((p.get("liquidity") or {}).get("usd")) or 0
                     if not m:
                         continue
@@ -3279,17 +3280,20 @@ async def _enrich_solana_tokens(tokens: list) -> None:
                                    "price": float(p.get("priceUsd") or 0),
                                    "change_24h": (p.get("priceChange") or {}).get("h24")}
     except Exception as e:
-        logger.warning(f"DexScreener enrich error: {e}")
+        logger.warning(f"DexScreener enrich error ({chain_id}): {e}")
     for t in tokens:
-        info = best.get(t["mint"])
+        info = best.get((t.get(addr_field) or "").lower())
         # Ignore les pools à très faible liquidité (souvent des tokens scam)
-        if info and (info.get("liq") or 0) >= 1000:
+        if info and (info.get("liq") or 0) >= 1000 and info.get("price"):
             if info.get("symbol"):
                 t["symbol"] = info["symbol"]
             t["name"] = info.get("name") or t.get("name") or ""
-            t["price"] = round(info["price"], 8) if info.get("price") else None
+            t["price"] = round(info["price"], 8)
             t["change_24h"] = info.get("change_24h")
-            t["value"] = round(t["balance"] * info["price"], 2) if info.get("price") else None
+            t["value"] = round(t["balance"] * info["price"], 2)
+
+async def _enrich_solana_tokens(tokens: list) -> None:
+    await _enrich_dex_tokens(tokens, "solana", addr_field="mint")
 
 
 async def fetch_solana_wallet(address: str) -> dict:
