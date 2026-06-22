@@ -98,6 +98,25 @@ def dec_secret(token: str) -> str:
         logger.error(f"dec_secret error: {e}")
         return ""
 
+# --- Génération de wallet de trading (Solana, ed25519 via cryptography) ---
+_B58_ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
+def b58encode(b: bytes) -> str:
+    n = int.from_bytes(b, "big")
+    s = ""
+    while n > 0:
+        n, r = divmod(n, 58)
+        s = _B58_ALPHABET[r] + s
+    pad = len(b) - len(b.lstrip(b"\x00"))
+    return "1" * pad + s
+
+def generate_solana_wallet():
+    """Retourne (address_base58, secret_base58_format_Phantom)."""
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+    priv = Ed25519PrivateKey.generate()
+    sk = priv.private_bytes_raw()                 # 32 bytes
+    pk = priv.public_key().public_bytes_raw()     # 32 bytes
+    return b58encode(pk), b58encode(sk + pk)      # adresse, clé secrète (64o, importable Phantom)
+
 # Per-provider models (overridable via .env)
 ANTHROPIC_MODEL = ENV.get("ANTHROPIC_MODEL", "claude-haiku-4-5")
 OPENAI_MODEL = ENV.get("OPENAI_MODEL", "gpt-4o")
@@ -364,6 +383,17 @@ def init_db():
             created_at TEXT DEFAULT (datetime('now')),
             last_sync TEXT,
             UNIQUE(user_id, chain, address),
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        );
+
+        CREATE TABLE IF NOT EXISTS trading_wallets (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            chain TEXT DEFAULT 'solana',
+            address TEXT NOT NULL,
+            secret_enc TEXT NOT NULL,
+            label TEXT DEFAULT 'Wallet de trading',
+            created_at TEXT DEFAULT (datetime('now')),
             FOREIGN KEY (user_id) REFERENCES users(id)
         );
 
@@ -4095,6 +4125,61 @@ async def sync_all(user=Depends(get_current_user)):
     conn.commit()
     conn.close()
     return {"synced": len(sources), "sources": sources, "imported": imported, "errors": errors}
+
+# ══════════════════════════════════════════════════════════════
+#  WALLET DE TRADING (hot wallet généré par le site — Solana)
+# ══════════════════════════════════════════════════════════════
+@app.get("/api/v1/trading/wallet")
+async def trading_wallet_get(user=Depends(get_current_user)):
+    """Renvoie le wallet de trading (adresse + soldes live). Aucun secret ici."""
+    conn = get_db()
+    w = conn.execute("SELECT id, address, chain, label, created_at FROM trading_wallets WHERE user_id=? LIMIT 1",
+                     (user["id"],)).fetchone()
+    conn.close()
+    if not w:
+        return {"wallet": None}
+    bal = {"tokens": [], "total_value": 0}
+    try:
+        bal = await fetch_solana_wallet(w["address"])
+    except Exception as e:
+        logger.warning(f"trading wallet balance error: {e}")
+    return {"wallet": dict(w), "balances": bal}
+
+@app.post("/api/v1/trading/wallet")
+async def trading_wallet_create(user=Depends(get_current_user)):
+    """Crée un wallet de trading Solana (clé chiffrée). 1 par utilisateur."""
+    conn = get_db()
+    existing = conn.execute("SELECT id, address FROM trading_wallets WHERE user_id=? LIMIT 1",
+                            (user["id"],)).fetchone()
+    if existing:
+        conn.close()
+        return {"address": existing["address"], "created": False}
+    address, secret_b58 = generate_solana_wallet()
+    conn.execute("INSERT INTO trading_wallets (user_id, chain, address, secret_enc) VALUES (?,?,?,?)",
+                 (user["id"], "solana", address, enc_secret(secret_b58)))
+    conn.commit()
+    conn.close()
+    return {"address": address, "created": True}
+
+@app.get("/api/v1/trading/wallet/export")
+async def trading_wallet_export(user=Depends(get_current_user)):
+    """Exporte la clé privée (format Phantom). À copier/sauvegarder hors-ligne."""
+    conn = get_db()
+    w = conn.execute("SELECT secret_enc, address FROM trading_wallets WHERE user_id=? LIMIT 1",
+                     (user["id"],)).fetchone()
+    conn.close()
+    if not w:
+        raise HTTPException(404, "Aucun wallet de trading")
+    return {"address": w["address"], "private_key": dec_secret(w["secret_enc"]),
+            "warning": "Quiconque détient cette clé contrôle ce wallet. Ne la partage jamais."}
+
+@app.delete("/api/v1/trading/wallet/{wid}")
+async def trading_wallet_delete(wid: int, user=Depends(get_current_user)):
+    conn = get_db()
+    conn.execute("DELETE FROM trading_wallets WHERE id=? AND user_id=?", (wid, user["id"]))
+    conn.commit()
+    conn.close()
+    return {"deleted": wid}
 
 # ══════════════════════════════════════════════════════════════
 #  ADMIN
