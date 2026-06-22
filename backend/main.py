@@ -230,7 +230,8 @@ _SCHEMA_MIGRATIONS = {
     "portfolio_positions": [("asset_type", "TEXT DEFAULT 'crypto'"), ("name", "TEXT DEFAULT ''"),
                    ("quantity", "REAL DEFAULT 0"), ("avg_cost", "REAL DEFAULT 0"),
                    ("current_price", "REAL DEFAULT 0"), ("sector", "TEXT DEFAULT ''"),
-                   ("notes", "TEXT DEFAULT ''")],
+                   ("notes", "TEXT DEFAULT ''"), ("contract_address", "TEXT DEFAULT ''"),
+                   ("price_source", "TEXT DEFAULT ''")],
     "transactions": [("asset_type", "TEXT DEFAULT 'crypto'"), ("fees", "REAL DEFAULT 0"),
                    ("total", "REAL DEFAULT 0"), ("exchange", "TEXT DEFAULT ''"),
                    ("notes", "TEXT DEFAULT ''")],
@@ -301,6 +302,8 @@ def init_db():
             current_price REAL DEFAULT 0,
             sector TEXT DEFAULT '',
             notes TEXT DEFAULT '',
+            contract_address TEXT DEFAULT '',
+            price_source TEXT DEFAULT '',
             added_at TEXT DEFAULT (datetime('now')),
             FOREIGN KEY (portfolio_id) REFERENCES portfolios(id)
         );
@@ -1459,10 +1462,29 @@ class SimTradeRequest(BaseModel):
 # ══════════════════════════════════════════════════════════════
 #  PORTFOLIO HELPERS
 # ══════════════════════════════════════════════════════════════
+_DEX_SOURCES = {"solana", "ethereum", "base", "bnb", "bsc", "evm", "polygon",
+                "arbitrum", "optimism", "avalanche", "fantom"}
+
+def _is_dex_position(p: dict) -> bool:
+    """Un token issu d'un wallet on-chain (DEX) : son prix vient du CONTRAT,
+    jamais du symbole (un scam 'ABTC' ne doit pas hériter du prix du BTC)."""
+    if (p.get("price_source") or "") == "dex":
+        return True
+    if (p.get("contract_address") or "").strip():
+        return True
+    # Données héritées (avant la colonne price_source) : on déduit via la source de sync
+    note = (p.get("notes") or "").strip().lower()
+    if note.startswith("sync "):
+        return note[5:].split()[0] in _DEX_SOURCES
+    return False
+
 async def enrich_portfolio(portfolio_id: int, positions_rows: list) -> dict:
     """Add live prices and compute PnL for a portfolio."""
     positions = [dict(r) for r in positions_rows]
-    crypto_syms = [p["symbol"] for p in positions if p["asset_type"] == "crypto"]
+    # Les tokens DEX sont prixés par contrat (au moment du sync) — on NE les
+    # re-prixe PAS par symbole ici, sinon collision de tickers => valeurs délirantes.
+    crypto_syms = [p["symbol"] for p in positions
+                   if p["asset_type"] == "crypto" and not _is_dex_position(p)]
     etf_syms = [p["symbol"] for p in positions if p["asset_type"] in ("etf", "stock")]
     # Nom toujours présent : on complète depuis le cache marché (CoinGecko)
     name_map = {}
@@ -1491,7 +1513,15 @@ async def enrich_portfolio(portfolio_id: int, positions_rows: list) -> dict:
         sym = p["symbol"].upper()
         if not (p.get("name") or "").strip():
             p["name"] = name_map.get(sym) or sym
-        if p["asset_type"] == "crypto":
+        if p["asset_type"] == "crypto" and _is_dex_position(p):
+            # Token on-chain : on garde le prix par contrat enregistré au sync.
+            # (Le re-sync wallet rafraîchit ce prix ; pas de pricing par symbole.)
+            p["current_price"] = p.get("current_price") or 0
+            p["change_24h"] = 0
+            p["market_cap"] = 0
+            p["volume_24h"] = 0
+            p["price_live"] = False
+        elif p["asset_type"] == "crypto":
             d = crypto_prices.get(sym, {})
             live_price = d.get("price", 0)
             # Use live price if found; otherwise fall back to stored price (not avg_cost to avoid confusion)
@@ -3877,11 +3907,17 @@ async def _import_wallet_result(conn, pid: int, result: dict, source: str,
         bal = float(t.get("balance") or t.get("total") or 0)
         if not sym or bal <= 0 or len(sym) > 20:
             continue
+        contract = (t.get("contract") or t.get("contractaddress")
+                    or t.get("token_address") or t.get("address") or "").strip()
+        if contract.lower() in ("native", "sol", ""):
+            contract = ""
         if sym in _STABLE_SYMS:
             price = 1.0
+            price_source = "cex" if from_cex else "dex"
         elif from_cex:
             price = (prices.get(sym, {}) or {}).get("price", 0) \
                 or float(t.get("price") or t.get("price_usd") or 0)
+            price_source = "cex"
         else:
             # DEX : seulement le prix par contrat (jamais par symbole)
             price = float(t.get("price") or t.get("price_usd") or 0)
@@ -3891,18 +3927,21 @@ async def _import_wallet_result(conn, pid: int, result: dict, source: str,
             # Anti-poussière/scam : on n'importe pas les valeurs négligeables/non prixées
             if price * bal < _DUST_MIN_USD:
                 continue
+            price_source = "dex"
         existing = conn.execute(
             "SELECT id FROM portfolio_positions WHERE portfolio_id=? AND symbol=?",
             (pid, sym)).fetchone()
         if existing:
             conn.execute(
-                "UPDATE portfolio_positions SET quantity=?, current_price=?, notes=? WHERE id=?",
-                (bal, price, f"Sync {source}", existing["id"]))
+                """UPDATE portfolio_positions SET quantity=?, current_price=?, notes=?,
+                   contract_address=?, price_source=? WHERE id=?""",
+                (bal, price, f"Sync {source}", contract, price_source, existing["id"]))
         else:
             conn.execute("""INSERT INTO portfolio_positions
-                (portfolio_id, symbol, asset_type, quantity, avg_cost, current_price, notes)
-                VALUES (?,?,?,?,?,?,?)""",
-                (pid, sym, "crypto", bal, price, price, f"Sync {source}"))
+                (portfolio_id, symbol, asset_type, quantity, avg_cost, current_price, notes,
+                 contract_address, price_source)
+                VALUES (?,?,?,?,?,?,?,?,?)""",
+                (pid, sym, "crypto", bal, price, price, f"Sync {source}", contract, price_source))
         imported += 1
     conn.commit()
     return imported
