@@ -3420,6 +3420,46 @@ async def _enrich_dex_tokens(tokens: list, chain_id: str, addr_field: str = "con
 async def _enrich_solana_tokens(tokens: list) -> None:
     await _enrich_dex_tokens(tokens, "solana", addr_field="mint")
 
+# Plateformes CoinGecko par chaîne (pour le pricing par contrat)
+_CG_PLATFORM = {"base": "base", "ethereum": "ethereum"}
+
+async def _enrich_tokens_coingecko_contract(tokens: list, chain: str,
+                                            addr_field: str = "contract") -> None:
+    """2e source de prix : CoinGecko 'token_price' par CONTRAT. Ne touche QUE les
+    tokens encore sans prix (complète DexScreener), fiable pour les tokens listés
+    (Toshi, etc.). Mutates in place."""
+    platform = _CG_PLATFORM.get(chain)
+    if not platform:
+        return
+    addrs = list({(t.get(addr_field) or "").lower() for t in tokens
+                  if t.get(addr_field) and t.get(addr_field) != "native"
+                  and not (t.get("value") or t.get("price"))})
+    if not addrs:
+        return
+    prices: dict = {}
+    try:
+        headers = {"x-cg-demo-api-key": COINGECKO_API_KEY} if COINGECKO_API_KEY else {}
+        async with httpx.AsyncClient(timeout=12) as client:
+            for i in range(0, len(addrs), 50):
+                chunk = addrs[i:i + 50]
+                r = await client.get(
+                    f"https://api.coingecko.com/api/v3/simple/token_price/{platform}",
+                    params={"contract_addresses": ",".join(chunk),
+                            "vs_currencies": "usd", "include_24hr_change": "true"},
+                    headers=headers)
+                if r.status_code == 200:
+                    for addr, d in (r.json() or {}).items():
+                        if d.get("usd"):
+                            prices[addr.lower()] = d
+    except Exception as e:
+        logger.warning(f"CoinGecko contract price error ({chain}): {e}")
+    for t in tokens:
+        d = prices.get((t.get(addr_field) or "").lower())
+        if d and not (t.get("value") or t.get("price")):
+            t["price"] = round(float(d["usd"]), 10)
+            t["change_24h"] = d.get("usd_24h_change")
+            t["value"] = round((t.get("balance") or 0) * float(d["usd"]), 2)
+
 
 async def fetch_solana_wallet(address: str) -> dict:
     """Fetch SOL balance + SPL tokens from a Solana wallet address."""
@@ -3677,8 +3717,9 @@ async def fetch_ethereum_wallet(address: str, etherscan_key: str = "") -> dict:
             except Exception as e:
                 logger.warning(f"Ethplorer fallback error: {e}")
 
-    # Pricing par CONTRAT via DexScreener (fiable) + filtre spam, comme pour Base
+    # Pricing par CONTRAT : DexScreener + CoinGecko (2 sources), comme pour Base
     await _enrich_dex_tokens(tokens, "ethereum", addr_field="contract")
+    await _enrich_tokens_coingecko_contract(tokens, "ethereum", addr_field="contract")
     native = [t for t in tokens if (t.get("contract") or "") == "native"]
     if native:
         try:
@@ -3746,8 +3787,10 @@ async def fetch_base_wallet(address: str) -> dict:
                         by_contract[c][k] = v
     tokens.extend(by_contract.values())
 
-    # 3. Pricing FIABLE par CONTRAT via DexScreener (Toshi/Mochi ont des pools liquides).
+    # 3. Pricing par CONTRAT : DexScreener d'abord, puis CoinGecko en complément
+    #    (2 sources -> un vrai token ne disparaît pas si l'une échoue).
     await _enrich_dex_tokens(tokens, "base", addr_field="contract")
+    await _enrich_tokens_coingecko_contract(tokens, "base", addr_field="contract")
     # ETH natif : prix par symbole (pas de contrat)
     native = [t for t in tokens if (t.get("contract") or "") == "native"]
     if native:
