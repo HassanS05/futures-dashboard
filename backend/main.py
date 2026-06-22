@@ -1746,6 +1746,24 @@ async def debug_portfolio():
             "position_count": len(items),
             "top_positions": items[:15]}
 
+@app.get("/api/v1/debug/wallet/{chain}/{address}")
+async def debug_wallet(chain: str, address: str, evm_chain: str = "eth"):
+    """Diagnostic (sans secret) : ce que le fetcher remonte VRAIMENT pour un
+    wallet, après pricing/filtre. Ex: /api/v1/debug/wallet/base/0x930a...c4EF
+    ou /api/v1/debug/wallet/solana/<adresse>."""
+    try:
+        res = await _fetch_dex(chain.lower(), address, evm_chain)
+    except Exception as e:
+        return {"error": getattr(e, "detail", str(e))}
+    toks = res.get("tokens") or res.get("balances") or []
+    out = [{"symbol": t.get("symbol"), "balance": t.get("balance"),
+            "price": t.get("price") or t.get("price_usd") or 0,
+            "value": t.get("value") or t.get("usd_value") or 0,
+            "contract": (t.get("contract") or t.get("mint") or "")[:18],
+            "name": t.get("name") or ""} for t in toks]
+    out.sort(key=lambda x: x["value"] or 0, reverse=True)
+    return {"chain": chain, "address": address, "token_count": len(out), "tokens": out}
+
 @app.get("/api/v1/ai/status")
 async def ai_status():
     """Expose configured AI providers and the active task routing."""
@@ -3507,8 +3525,8 @@ async def fetch_base_tokens_ankr(address: str) -> list:
                     "params": {
                         "blockchain": ["base"],
                         "walletAddress": address,
-                        "onlyWhitelisted": False,
-                        "pageSize": 50
+                        "onlyWhitelisted": True,
+                        "pageSize": 100
                     }, "id": 1
                 },
                 headers={"Content-Type": "application/json"}
