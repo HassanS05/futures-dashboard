@@ -354,6 +354,19 @@ def init_db():
             FOREIGN KEY (user_id) REFERENCES users(id)
         );
 
+        CREATE TABLE IF NOT EXISTS wallet_connections (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            chain TEXT NOT NULL,
+            address TEXT NOT NULL,
+            evm_chain TEXT DEFAULT '',
+            label TEXT DEFAULT '',
+            created_at TEXT DEFAULT (datetime('now')),
+            last_sync TEXT,
+            UNIQUE(user_id, chain, address),
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        );
+
         CREATE TABLE IF NOT EXISTS simulation_accounts (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER NOT NULL,
@@ -3788,6 +3801,64 @@ class WalletConnectRequest(BaseModel):
     portfolio_id: Optional[int] = None
     import_to_portfolio: bool = False
 
+_STABLE_SYMS = {"USDT","USDC","BUSD","DAI","TUSD","USDS","FDUSD","PYUSD","FRAX","GUSD","USDC.E","USDBC"}
+
+async def _import_wallet_result(conn, pid: int, result: dict, source: str) -> int:
+    """Upsert les tokens/balances d'un wallet/CEX dans le portefeuille.
+    Lit le prix dans cet ordre: CoinGecko/CMC live -> prix fourni (DEX/DexScreener)
+    -> valeur/quantité. Corrige les memecoins DEX qui restaient à $0."""
+    tokens = result.get("tokens") or result.get("balances") or []
+    syms = [(t.get("symbol") or "").upper() for t in tokens
+            if (t.get("symbol") or "").upper() not in _STABLE_SYMS]
+    prices = {}
+    try:
+        prices = await fetch_crypto_prices(syms) if syms else {}
+    except Exception:
+        pass
+    imported = 0
+    for t in tokens:
+        sym = (t.get("symbol") or "").upper().strip()
+        bal = float(t.get("balance") or t.get("total") or 0)
+        if not sym or bal <= 0 or len(sym) > 20:
+            continue
+        if sym in _STABLE_SYMS:
+            price = 1.0
+        else:
+            price = (prices.get(sym, {}) or {}).get("price", 0) \
+                or float(t.get("price") or t.get("price_usd") or 0)
+            if not price and bal:
+                v = t.get("value") or t.get("usd_value")
+                if v:
+                    price = float(v) / bal
+        existing = conn.execute(
+            "SELECT id FROM portfolio_positions WHERE portfolio_id=? AND symbol=?",
+            (pid, sym)).fetchone()
+        if existing:
+            conn.execute(
+                "UPDATE portfolio_positions SET quantity=?, current_price=?, notes=? WHERE id=?",
+                (bal, price, f"Sync {source}", existing["id"]))
+        else:
+            conn.execute("""INSERT INTO portfolio_positions
+                (portfolio_id, symbol, asset_type, quantity, avg_cost, current_price, notes)
+                VALUES (?,?,?,?,?,?,?)""",
+                (pid, sym, "crypto", bal, price, price, f"Sync {source}"))
+        imported += 1
+    conn.commit()
+    return imported
+
+async def _fetch_dex(chain: str, address: str, evm_chain: str = "eth") -> dict:
+    """Récupère les soldes d'un wallet on-chain (lecture seule, par adresse)."""
+    chain = chain.lower().strip()
+    if chain == "solana":
+        return await fetch_solana_wallet(address)
+    if chain == "ethereum":
+        return await fetch_ethereum_wallet(address)
+    if chain == "base":
+        return await fetch_base_wallet(address)
+    if chain == "evm":
+        return await fetch_evm_generic(evm_chain or "eth", address)
+    raise HTTPException(400, f"Chaîne wallet non supportée: {chain}")
+
 @app.post("/api/v1/wallets/fetch")
 async def fetch_wallet(req: WalletConnectRequest, user=Depends(get_current_user)):
     """Fetch balances from a wallet or exchange."""
@@ -3830,51 +3901,11 @@ async def fetch_wallet(req: WalletConnectRequest, user=Depends(get_current_user)
         if not p:
             conn.close()
             raise HTTPException(403, "Portefeuille introuvable")
-
-        STABLE = {"USDT","USDC","BUSD","DAI","TUSD","USDS","FDUSD","PYUSD","FRAX","GUSD","USDC.E","USDBC"}
-        tokens = result.get("tokens") or result.get("balances") or []
-
-        # Fetch live prices pour les symboles non-stables (les stables valent ~1$)
-        syms = [t.get("symbol","").upper() for t in tokens
-                if t.get("symbol","").upper() not in STABLE]
-        prices = {}
-        try:
-            prices = await fetch_crypto_prices(syms) if syms else {}
-        except Exception:
-            pass
-
-        imported = 0
-        for t in tokens:
-            sym = (t.get("symbol","") or "").upper().strip()
-            bal = float(t.get("balance") or t.get("total") or 0)
-            # On importe TOUT, y compris les stablecoins (actifs réels ~1$)
-            if not sym or bal <= 0 or len(sym) > 20:
-                continue
-            if sym in STABLE:
-                current_price = 1.0
-            else:
-                # 1) prix live CoinGecko, sinon 2) prix USD fourni par le wallet
-                current_price = prices.get(sym, {}).get("price", 0) or float(t.get("price_usd") or 0)
-                if not current_price and t.get("usd_value") and bal:
-                    current_price = float(t["usd_value"]) / bal
-            source = "Binance" if req.chain == "binance" else (req.exchange.capitalize() if req.chain == "exchange" and req.exchange else req.chain.capitalize())
-            existing = conn.execute(
-                "SELECT id FROM portfolio_positions WHERE portfolio_id=? AND symbol=?",
-                (req.portfolio_id, sym)).fetchone()
-            if existing:
-                conn.execute(
-                    "UPDATE portfolio_positions SET quantity=?, current_price=?, notes=? WHERE id=?",
-                    (bal, current_price, f"Sync {source}", existing["id"]))
-            else:
-                conn.execute("""INSERT INTO portfolio_positions
-                    (portfolio_id, symbol, asset_type, quantity, avg_cost, current_price, notes)
-                    VALUES (?,?,?,?,?,?,?)""",
-                    (req.portfolio_id, sym, "crypto", bal,
-                     current_price, current_price, f"Importé depuis {source}"))
-            imported += 1
-        conn.commit()
+        source = "Binance" if req.chain == "binance" else (
+            req.exchange.capitalize() if req.chain == "exchange" and req.exchange
+            else req.chain.capitalize())
+        result["imported_to_portfolio"] = await _import_wallet_result(conn, req.portfolio_id, result, source)
         conn.close()
-        result["imported_to_portfolio"] = imported
 
     return result
 
@@ -3909,26 +3940,7 @@ async def cex_sync(user=Depends(get_current_user)):
         except Exception as e:
             errors.append(f"{ex}: {str(e)[:120]}")
             continue
-        balances = res.get("balances", [])
-        prices = await fetch_crypto_prices([b["symbol"].upper() for b in balances])
-        for b in balances:
-            sym = (b.get("symbol") or "").upper().strip()
-            bal = float(b.get("total") or 0)
-            if not sym or bal <= 0 or len(sym) > 20:
-                continue
-            cur = (prices.get(sym, {}) or {}).get("price", 0) or 0
-            existing = conn.execute(
-                "SELECT id FROM portfolio_positions WHERE portfolio_id=? AND symbol=?",
-                (pid, sym)).fetchone()
-            if existing:
-                conn.execute("UPDATE portfolio_positions SET quantity=?, notes=? WHERE id=?",
-                             (bal, f"Sync {ex.capitalize()}", existing["id"]))
-            else:
-                conn.execute("""INSERT INTO portfolio_positions
-                    (portfolio_id, symbol, asset_type, quantity, avg_cost, current_price, notes)
-                    VALUES (?,?,?,?,?,?,?)""",
-                    (pid, sym, "crypto", bal, cur, cur, f"Sync {ex.capitalize()}"))
-            imported += 1
+        imported += await _import_wallet_result(conn, pid, res, ex.capitalize())
         conn.execute("UPDATE cex_connections SET last_sync=datetime('now') WHERE id=?", (c["id"],))
     conn.commit()
     conn.close()
@@ -3974,6 +3986,82 @@ async def cex_connection_delete(cid: int, user=Depends(get_current_user)):
     conn.commit()
     conn.close()
     return {"deleted": cid}
+
+@app.post("/api/v1/connections/add")
+async def wallet_connection_add(req: dict, user=Depends(get_current_user)):
+    """Enregistre un wallet DEX (par adresse publique) et synchronise aussitôt."""
+    chain = (req.get("chain") or "").lower().strip()
+    address = (req.get("address") or "").strip()
+    evm_chain = (req.get("evm_chain") or "eth").strip()
+    if chain not in ("solana", "ethereum", "base", "evm") or not address:
+        raise HTTPException(400, "chain (solana/ethereum/base/evm) et adresse requis")
+    await _fetch_dex(chain, address, evm_chain)  # valide l'adresse
+    conn = get_db()
+    conn.execute("""INSERT INTO wallet_connections (user_id, chain, address, evm_chain, label)
+        VALUES (?,?,?,?,?)
+        ON CONFLICT(user_id, chain, address) DO UPDATE SET evm_chain=excluded.evm_chain""",
+        (user["id"], chain, address, evm_chain,
+         (chain.capitalize() if chain != "evm" else evm_chain.upper())))
+    conn.commit()
+    conn.close()
+    return await sync_all(user)
+
+@app.get("/api/v1/connections")
+async def connections_list(user=Depends(get_current_user)):
+    conn = get_db()
+    cex = [dict(r) for r in conn.execute(
+        "SELECT id, exchange AS name, 'cex' AS kind, last_sync FROM cex_connections WHERE user_id=?",
+        (user["id"],))]
+    dex = [dict(r) for r in conn.execute(
+        "SELECT id, chain AS name, address, 'dex' AS kind, last_sync FROM wallet_connections WHERE user_id=?",
+        (user["id"],))]
+    conn.close()
+    return {"connections": cex + dex}
+
+@app.delete("/api/v1/connections/{cid}")
+async def wallet_connection_delete(cid: int, user=Depends(get_current_user)):
+    conn = get_db()
+    conn.execute("DELETE FROM wallet_connections WHERE id=? AND user_id=?", (cid, user["id"]))
+    conn.commit()
+    conn.close()
+    return {"deleted": cid}
+
+@app.post("/api/v1/sync/all")
+async def sync_all(user=Depends(get_current_user)):
+    """Synchronise le portefeuille depuis TOUTES les connexions (CEX + wallets DEX)."""
+    conn = get_db()
+    pf = conn.execute("SELECT id FROM portfolios WHERE user_id=? AND is_default=1", (user["id"],)).fetchone() \
+        or conn.execute("SELECT id FROM portfolios WHERE user_id=? LIMIT 1", (user["id"],)).fetchone()
+    if not pf:
+        conn.close()
+        raise HTTPException(400, "Aucun portefeuille")
+    pid = pf["id"]
+    imported = 0
+    sources = []
+    errors = []
+    # CEX (clés chiffrées)
+    for c in conn.execute("SELECT * FROM cex_connections WHERE user_id=?", (user["id"],)).fetchall():
+        try:
+            res = await fetch_cex_balances(c["exchange"], dec_secret(c["api_key_enc"]),
+                                           dec_secret(c["api_secret_enc"]),
+                                           dec_secret(c["api_password_enc"]))
+            imported += await _import_wallet_result(conn, pid, res, c["exchange"].capitalize())
+            sources.append(c["exchange"])
+            conn.execute("UPDATE cex_connections SET last_sync=datetime('now') WHERE id=?", (c["id"],))
+        except Exception as e:
+            errors.append(f"{c['exchange']}: {getattr(e, 'detail', str(e))[:120]}")
+    # Wallets DEX (par adresse)
+    for w in conn.execute("SELECT * FROM wallet_connections WHERE user_id=?", (user["id"],)).fetchall():
+        try:
+            res = await _fetch_dex(w["chain"], w["address"], w["evm_chain"])
+            imported += await _import_wallet_result(conn, pid, res, w["chain"].capitalize())
+            sources.append(w["chain"])
+            conn.execute("UPDATE wallet_connections SET last_sync=datetime('now') WHERE id=?", (w["id"],))
+        except Exception as e:
+            errors.append(f"{w['chain']}: {getattr(e, 'detail', str(e))[:120]}")
+    conn.commit()
+    conn.close()
+    return {"synced": len(sources), "sources": sources, "imported": imported, "errors": errors}
 
 # ══════════════════════════════════════════════════════════════
 #  ADMIN
