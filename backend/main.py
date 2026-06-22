@@ -4179,6 +4179,13 @@ async def sync_all(user=Depends(get_current_user)):
     imported = 0
     sources = []
     errors = []
+    # Réconciliation : la synchro doit REFLÉTER l'état réel des wallets/CEX.
+    # On efface les positions précédemment synchronisées (notes 'Sync …') puis on
+    # ré-importe l'état courant -> un token vendu/parti/airdrop-spam ne reste pas
+    # collé indéfiniment. Les positions saisies à la main (notes ≠ 'Sync …') restent.
+    conn.execute("DELETE FROM portfolio_positions WHERE portfolio_id=? AND notes LIKE 'Sync %'",
+                 (pid,))
+    conn.commit()
     # CEX (clés chiffrées)
     for c in conn.execute("SELECT * FROM cex_connections WHERE user_id=?", (user["id"],)).fetchall():
         try:
