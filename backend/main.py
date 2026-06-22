@@ -75,6 +75,29 @@ DEFAULT_AI_PROVIDER = ENV.get("DEFAULT_AI_PROVIDER", "anthropic")
 COINGECKO_API_KEY = ENV.get("COINGECKO_API_KEY", "")
 COINMARKETCAP_API_KEY = ENV.get("COINMARKETCAP_API_KEY", "") or ENV.get("CMC_API_KEY", "")
 
+# --- Chiffrement local des clés API CEX (dérivé de SECRET_KEY) ---
+import base64
+def _fernet():
+    from cryptography.fernet import Fernet
+    key = base64.urlsafe_b64encode(hashlib.sha256(SECRET_KEY.encode()).digest())
+    return Fernet(key)
+def enc_secret(text: str) -> str:
+    if not text:
+        return ""
+    try:
+        return _fernet().encrypt(text.encode()).decode()
+    except Exception as e:
+        logger.error(f"enc_secret error: {e}")
+        return ""
+def dec_secret(token: str) -> str:
+    if not token:
+        return ""
+    try:
+        return _fernet().decrypt(token.encode()).decode()
+    except Exception as e:
+        logger.error(f"dec_secret error: {e}")
+        return ""
+
 # Per-provider models (overridable via .env)
 ANTHROPIC_MODEL = ENV.get("ANTHROPIC_MODEL", "claude-haiku-4-5")
 OPENAI_MODEL = ENV.get("OPENAI_MODEL", "gpt-4o")
@@ -314,6 +337,20 @@ def init_db():
             asset_type TEXT DEFAULT 'crypto',
             analysis TEXT DEFAULT '{}',
             created_at TEXT DEFAULT (datetime('now')),
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        );
+
+        CREATE TABLE IF NOT EXISTS cex_connections (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            exchange TEXT NOT NULL,
+            label TEXT DEFAULT '',
+            api_key_enc TEXT NOT NULL,
+            api_secret_enc TEXT NOT NULL,
+            api_password_enc TEXT DEFAULT '',
+            created_at TEXT DEFAULT (datetime('now')),
+            last_sync TEXT,
+            UNIQUE(user_id, exchange),
             FOREIGN KEY (user_id) REFERENCES users(id)
         );
 
@@ -3840,6 +3877,103 @@ async def fetch_wallet(req: WalletConnectRequest, user=Depends(get_current_user)
         result["imported_to_portfolio"] = imported
 
     return result
+
+# ══════════════════════════════════════════════════════════════
+#  CONNEXIONS CEX PERSISTANTES (clé chiffrée) + SYNCHRO AUTO
+# ══════════════════════════════════════════════════════════════
+@app.post("/api/v1/cex/sync")
+async def cex_sync(user=Depends(get_current_user)):
+    """Resynchronise le portefeuille depuis toutes les connexions CEX stockées."""
+    conn = get_db()
+    conns = conn.execute("SELECT * FROM cex_connections WHERE user_id=?", (user["id"],)).fetchall()
+    if not conns:
+        conn.close()
+        return {"synced": 0, "imported": 0, "message": "Aucune connexion CEX enregistrée"}
+    pf = conn.execute("SELECT id FROM portfolios WHERE user_id=? AND is_default=1", (user["id"],)).fetchone() \
+        or conn.execute("SELECT id FROM portfolios WHERE user_id=? LIMIT 1", (user["id"],)).fetchone()
+    if not pf:
+        conn.close()
+        raise HTTPException(400, "Aucun portefeuille")
+    pid = pf["id"]
+    imported = 0
+    errors = []
+    for c in conns:
+        ex = c["exchange"]
+        try:
+            res = await fetch_cex_balances(ex, dec_secret(c["api_key_enc"]),
+                                           dec_secret(c["api_secret_enc"]),
+                                           dec_secret(c["api_password_enc"]))
+        except HTTPException as e:
+            errors.append(f"{ex}: {e.detail}")
+            continue
+        except Exception as e:
+            errors.append(f"{ex}: {str(e)[:120]}")
+            continue
+        balances = res.get("balances", [])
+        prices = await fetch_crypto_prices([b["symbol"].upper() for b in balances])
+        for b in balances:
+            sym = (b.get("symbol") or "").upper().strip()
+            bal = float(b.get("total") or 0)
+            if not sym or bal <= 0 or len(sym) > 20:
+                continue
+            cur = (prices.get(sym, {}) or {}).get("price", 0) or 0
+            existing = conn.execute(
+                "SELECT id FROM portfolio_positions WHERE portfolio_id=? AND symbol=?",
+                (pid, sym)).fetchone()
+            if existing:
+                conn.execute("UPDATE portfolio_positions SET quantity=?, notes=? WHERE id=?",
+                             (bal, f"Sync {ex.capitalize()}", existing["id"]))
+            else:
+                conn.execute("""INSERT INTO portfolio_positions
+                    (portfolio_id, symbol, asset_type, quantity, avg_cost, current_price, notes)
+                    VALUES (?,?,?,?,?,?,?)""",
+                    (pid, sym, "crypto", bal, cur, cur, f"Sync {ex.capitalize()}"))
+            imported += 1
+        conn.execute("UPDATE cex_connections SET last_sync=datetime('now') WHERE id=?", (c["id"],))
+    conn.commit()
+    conn.close()
+    return {"synced": len(conns), "imported": imported, "errors": errors}
+
+@app.post("/api/v1/cex/connect")
+async def cex_connect(req: dict, user=Depends(get_current_user)):
+    """Teste puis stocke (chiffré) une clé CEX read-only, et synchronise aussitôt."""
+    exchange = (req.get("exchange") or "").lower().strip()
+    api_key = (req.get("api_key") or "").strip()
+    api_secret = (req.get("api_secret") or "").strip()
+    api_password = (req.get("api_password") or "").strip()
+    if not exchange or not api_key or not api_secret:
+        raise HTTPException(400, "exchange, api_key et api_secret requis")
+    # Valide la clé avant de stocker (lève une erreur claire si invalide)
+    await fetch_cex_balances(exchange, api_key, api_secret, api_password)
+    conn = get_db()
+    conn.execute("""INSERT INTO cex_connections
+        (user_id, exchange, label, api_key_enc, api_secret_enc, api_password_enc)
+        VALUES (?,?,?,?,?,?)
+        ON CONFLICT(user_id, exchange) DO UPDATE SET
+          api_key_enc=excluded.api_key_enc, api_secret_enc=excluded.api_secret_enc,
+          api_password_enc=excluded.api_password_enc""",
+        (user["id"], exchange, exchange.capitalize(),
+         enc_secret(api_key), enc_secret(api_secret), enc_secret(api_password)))
+    conn.commit()
+    conn.close()
+    return await cex_sync(user)
+
+@app.get("/api/v1/cex/connections")
+async def cex_connections(user=Depends(get_current_user)):
+    conn = get_db()
+    rows = conn.execute(
+        "SELECT id, exchange, label, created_at, last_sync FROM cex_connections WHERE user_id=?",
+        (user["id"],)).fetchall()
+    conn.close()
+    return {"connections": [dict(r) for r in rows]}
+
+@app.delete("/api/v1/cex/connections/{cid}")
+async def cex_connection_delete(cid: int, user=Depends(get_current_user)):
+    conn = get_db()
+    conn.execute("DELETE FROM cex_connections WHERE id=? AND user_id=?", (cid, user["id"]))
+    conn.commit()
+    conn.close()
+    return {"deleted": cid}
 
 # ══════════════════════════════════════════════════════════════
 #  ADMIN

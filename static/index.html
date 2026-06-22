@@ -493,7 +493,12 @@ tbody tr:hover td{background:rgba(94,124,226,.05);}
       <div style="font-size:16px;font-weight:600;">Dashboard</div>
       <div style="font-size:11px;color:var(--mu);" x-text="'Bonjour, ' + (user?.full_name||user?.username) + ' — ' + new Date().toLocaleDateString('fr-FR',{weekday:'long',year:'numeric',month:'long',day:'numeric'})"></div>
     </div>
-    <button @click="loadAll()" class="btn btn-ghost btn-sm">↻ Actualiser</button>
+    <div style="display:flex;gap:6px;">
+      <button @click="syncCex()" class="btn btn-primary btn-sm" :disabled="cexSyncing" title="Resynchroniser depuis tes comptes CEX connectés">
+        <span x-show="cexSyncing" class="spin"></span><span x-text="cexSyncing?'Sync…':'🔄 Sync CEX'"></span>
+      </button>
+      <button @click="loadAll()" class="btn btn-ghost btn-sm">↻ Actualiser</button>
+    </div>
   </div>
 
   <!-- KPIs (épurés, alignés sur la page d'accueil) -->
@@ -1634,6 +1639,11 @@ tbody tr:hover td{background:rgba(94,124,226,.05);}
         <span x-show="walletLoading.exchange" class="spin"></span>
         <span x-text="walletLoading.exchange?'Connexion...':'Voir mes balances'"></span>
       </button>
+      <button @click="connectCex()" class="btn btn-success btn-sm" style="width:100%;justify-content:center;margin-top:6px;" :disabled="cexConnecting||!walletForms.exchange.api_key||!walletForms.exchange.api_secret">
+        <span x-show="cexConnecting" class="spin"></span>
+        <span x-text="cexConnecting?'Connexion…':'💾 Connecter & synchroniser (auto)'"></span>
+      </button>
+      <div style="font-size:10px;color:var(--mu);margin-top:5px;">Stocke ta clé <b>chiffrée</b> sur ton serveur pour resynchroniser en 1 clic. Utilise une clé <b>lecture seule</b>.</div>
       <div x-show="walletResults.exchange" style="margin-top:10px;">
         <div style="font-size:11px;color:var(--mu);margin-bottom:6px;" x-text="(walletResults.exchange?.total_assets||0)+' actifs trouvés'"></div>
         <div style="max-height:180px;overflow-y:auto;display:flex;flex-direction:column;gap:3px;">
@@ -3702,6 +3712,33 @@ function app() { return {
         {...this._walletBody(chain), import_to_portfolio:false});
     } catch(e) { alert('Erreur: '+e.message); }
     finally { this.walletLoading[chain] = false; }
+  },
+
+  cexConnecting:false, cexSyncing:false,
+  async connectCex(){
+    const f=this.walletForms.exchange;
+    if(!f.api_key||!f.api_secret){ alert('Clé et secret requis'); return; }
+    this.cexConnecting=true;
+    try{
+      const r=await this.api('POST','/api/v1/cex/connect',{
+        exchange:f.name, api_key:f.api_key, api_secret:f.api_secret, api_password:f.api_password||''});
+      alert('✅ Compte '+(f.name||'CEX')+' connecté et synchronisé — '+(r.imported||0)+' positions à jour.');
+      f.api_key=''; f.api_secret=''; f.api_password='';
+      await this.loadPortfolio(); this.go('portfolio');
+    }catch(e){ alert('Erreur: '+e.message); }
+    finally{ this.cexConnecting=false; }
+  },
+  async syncCex(){
+    this.cexSyncing=true;
+    try{
+      const r=await this.api('POST','/api/v1/cex/sync',{});
+      if(r.synced===0){ alert("Aucun compte CEX connecté. Va dans Wallets & CEX → connecte Kraken avec « 💾 Connecter & synchroniser »."); }
+      else { await this.loadPortfolio(); this.loadEquityCurve();
+        let msg='✅ '+r.imported+' positions synchronisées depuis '+r.synced+' compte(s).';
+        if(r.errors&&r.errors.length) msg+='\n⚠️ '+r.errors.join('\n');
+        alert(msg); }
+    }catch(e){ alert('Erreur sync: '+e.message); }
+    finally{ this.cexSyncing=false; }
   },
 
   async importWalletToPortfolio(chain) {
