@@ -3650,6 +3650,21 @@ async def fetch_ethereum_wallet(address: str, etherscan_key: str = "") -> dict:
             except Exception as e:
                 logger.warning(f"Ethplorer fallback error: {e}")
 
+    # Pricing par CONTRAT via DexScreener (fiable) + filtre spam, comme pour Base
+    await _enrich_dex_tokens(tokens, "ethereum", addr_field="contract")
+    native = [t for t in tokens if (t.get("contract") or "") == "native"]
+    if native:
+        try:
+            eth_px = (await fetch_crypto_prices(["ETH"])).get("ETH", {}).get("price", 0)
+            for t in native:
+                if eth_px:
+                    t["price"] = round(eth_px, 4)
+                    t["value"] = round(t["balance"] * eth_px, 2)
+        except Exception:
+            pass
+    tokens = [t for t in tokens
+              if (t.get("value") or t.get("usd_value") or 0) >= _DUST_MIN_USD
+              or ((t.get("contract") or "") == "native" and (t.get("value") or 0) >= 0.50)]
     return {"chain":"ethereum","address":address,
             "tokens":tokens,"token_count":len(tokens)}
 
@@ -3704,44 +3719,26 @@ async def fetch_base_wallet(address: str) -> dict:
         except Exception as e:
             logger.warning(f"Blockscout Base fallback error: {e}")
 
-    # 4. Enrich with prices (Base-specific CoinGecko IDs)
-    BASE_COINGECKO_IDS = {
-        "TOSHI": "toshi", "MOCHI": "mochi-the-cat-coin",
-        "AERO": "aerodrome-finance", "WETH": "weth",
-        "CBETH": "coinbase-wrapped-staked-eth", "BRETT": "brett",
-        "DEGEN": "degen-base", "BALD": "bald",
-        "HIGHER": "higher", "NORMIE": "normie",
-        "SATO": "sato", "RUSSELL": "russell-2000-meme",
-        "ETH": "ethereum",
-    }
-    syms_to_price = [t["symbol"] for t in tokens if t.get("balance", 0) > 0]
-    prices = {}
-    if syms_to_price:
+    # 4. Pricing FIABLE par CONTRAT via DexScreener (les memecoins Base type
+    #    Toshi/Mochi ont des pools liquides ; la résolution par symbole CoinGecko
+    #    échouait et renvoyait $0). Filtre aussi le spam (airdrops sans liquidité).
+    await _enrich_dex_tokens(tokens, "base", addr_field="contract")
+    # ETH natif : prix par symbole (pas de contrat)
+    native = [t for t in tokens if (t.get("contract") or "") == "native"]
+    if native:
         try:
-            # Map symbols to CoinGecko IDs
-            cg_id_map = {s: BASE_COINGECKO_IDS.get(s, s.lower()) for s in syms_to_price}
-            ids_str = ",".join(set(cg_id_map.values()))
-            async with httpx.AsyncClient(timeout=15) as client:
-                r = await client.get(
-                    "https://api.coingecko.com/api/v3/simple/price",
-                    params={"ids": ids_str, "vs_currencies": "usd"},
-                    headers={"Accept": "application/json"}
-                )
-                if r.status_code == 200:
-                    cg_data = r.json()
-                    for sym, cg_id in cg_id_map.items():
-                        if cg_id in cg_data:
-                            prices[sym] = cg_data[cg_id].get("usd", 0)
-        except Exception as e:
-            logger.warning(f"Base price fetch error: {e}")
-
-    total_usd = 0
-    for t in tokens:
-        sym = t["symbol"]
-        if sym in prices and prices[sym]:
-            t["price_usd"] = round(prices[sym], 8)
-            t["usd_value"] = round(t["balance"] * prices[sym], 4)
-        total_usd += t.get("usd_value", 0)
+            eth_px = (await fetch_crypto_prices(["ETH"])).get("ETH", {}).get("price", 0)
+            for t in native:
+                if eth_px:
+                    t["price"] = round(eth_px, 4)
+                    t["value"] = round(t["balance"] * eth_px, 2)
+        except Exception:
+            pass
+    # On ne garde que ce qui a une valeur réelle (≥ $0.50) -> élimine le spam $0.
+    tokens = [t for t in tokens
+              if (t.get("value") or t.get("usd_value") or 0) >= _DUST_MIN_USD
+              or (t.get("contract") or "") == "native" and (t.get("value") or 0) >= 0.50]
+    total_usd = sum((t.get("value") or t.get("usd_value") or 0) for t in tokens)
 
     return {
         "chain": "base", "address": address,
