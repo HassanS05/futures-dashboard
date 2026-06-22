@@ -4181,6 +4181,94 @@ async def trading_wallet_delete(wid: int, user=Depends(get_current_user)):
     conn.close()
     return {"deleted": wid}
 
+# --- Exécution de swaps Solana via Jupiter ---
+SOL_MINT = "So11111111111111111111111111111111111111112"
+USDC_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+_MINT_DECIMALS = {SOL_MINT: 9, USDC_MINT: 6}
+
+def _trading_keypair(user_id: int):
+    conn = get_db()
+    w = conn.execute("SELECT secret_enc FROM trading_wallets WHERE user_id=? LIMIT 1",
+                     (user_id,)).fetchone()
+    conn.close()
+    if not w:
+        raise HTTPException(400, "Crée d'abord un wallet de trading")
+    from solders.keypair import Keypair
+    return Keypair.from_base58_string(dec_secret(w["secret_enc"]))
+
+async def _jupiter_quote(input_mint: str, output_mint: str, amount: int, slippage_bps: int):
+    async with httpx.AsyncClient(timeout=15) as c:
+        r = await c.get("https://quote-api.jup.ag/v6/quote", params={
+            "inputMint": input_mint, "outputMint": output_mint,
+            "amount": str(int(amount)), "slippageBps": int(slippage_bps)})
+        return r.json()
+
+@app.post("/api/v1/trading/quote")
+async def trading_quote(req: dict, user=Depends(get_current_user)):
+    """Devis Jupiter (preview, n'exécute rien). amount_ui = montant à dépenser
+    dans la devise d'entrée (ex. 0.1 SOL)."""
+    in_mint = req.get("input_mint") or SOL_MINT
+    out_mint = req.get("output_mint")
+    if not out_mint:
+        raise HTTPException(400, "output_mint (token à acheter) requis")
+    dec = _MINT_DECIMALS.get(in_mint, 9)
+    amount = int(float(req.get("amount_ui") or 0) * (10 ** dec))
+    if amount <= 0:
+        raise HTTPException(400, "Montant invalide")
+    q = await _jupiter_quote(in_mint, out_mint, amount, int(req.get("slippage_bps", 100)))
+    if "error" in q or not q.get("outAmount"):
+        raise HTTPException(400, f"Aucune route de swap ({q.get('error','')})")
+    return {"out_amount_raw": q.get("outAmount"), "price_impact_pct": q.get("priceImpactPct"),
+            "route": [r.get("swapInfo", {}).get("label") for r in q.get("routePlan", [])],
+            "quote": q}
+
+@app.post("/api/v1/trading/swap")
+async def trading_swap(req: dict, user=Depends(get_current_user)):
+    """⚠️ EXÉCUTE un swap réel sur Solana via Jupiter (bouge des fonds)."""
+    in_mint = req.get("input_mint") or SOL_MINT
+    out_mint = req.get("output_mint")
+    if not out_mint:
+        raise HTTPException(400, "output_mint requis")
+    slippage = min(int(req.get("slippage_bps", 100)), 500)  # cap 5%
+    dec = _MINT_DECIMALS.get(in_mint, 9)
+    amount = int(float(req.get("amount_ui") or 0) * (10 ** dec))
+    if amount <= 0:
+        raise HTTPException(400, "Montant invalide")
+    kp = _trading_keypair(user["id"])
+    q = await _jupiter_quote(in_mint, out_mint, amount, slippage)
+    if "error" in q or not q.get("outAmount"):
+        raise HTTPException(400, f"Aucune route de swap ({q.get('error','')})")
+    try:
+        async with httpx.AsyncClient(timeout=25) as c:
+            sr = await c.post("https://quote-api.jup.ag/v6/swap", json={
+                "quoteResponse": q, "userPublicKey": str(kp.pubkey()),
+                "wrapAndUnwrapSol": True, "dynamicComputeUnitLimit": True,
+                "prioritizationFeeLamports": "auto"})
+            swap = sr.json()
+        if not swap.get("swapTransaction"):
+            raise HTTPException(400, f"Jupiter swap indisponible: {swap.get('error','')}")
+        import base64
+        from solders.transaction import VersionedTransaction
+        raw = base64.b64decode(swap["swapTransaction"])
+        unsigned = VersionedTransaction.from_bytes(raw)
+        signed = VersionedTransaction(unsigned.message, [kp])
+        async with httpx.AsyncClient(timeout=25) as c:
+            rpc = await c.post("https://api.mainnet-beta.solana.com", json={
+                "jsonrpc": "2.0", "id": 1, "method": "sendTransaction",
+                "params": [base64.b64encode(bytes(signed)).decode(),
+                           {"encoding": "base64", "skipPreflight": False, "maxRetries": 3}]})
+            res = rpc.json()
+        if res.get("error"):
+            raise HTTPException(400, f"Échec on-chain: {res['error'].get('message', res['error'])}")
+        sig = res.get("result")
+        return {"signature": sig, "explorer": f"https://solscan.io/tx/{sig}",
+                "out_amount_raw": q.get("outAmount")}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"trading swap error: {e}")
+        raise HTTPException(500, f"Erreur swap: {str(e)[:160]}")
+
 # ══════════════════════════════════════════════════════════════
 #  ADMIN
 # ══════════════════════════════════════════════════════════════

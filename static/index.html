@@ -1507,7 +1507,34 @@ tbody tr:hover td{background:rgba(94,124,226,.05);}
           <button @click="loadTradingWallet()" class="btn btn-ghost btn-sm">↻ Actualiser</button>
           <button @click="exportTradingWallet()" class="btn btn-ghost btn-sm" style="color:var(--yw);">🔑 Exporter la clé</button>
         </div>
-        <div style="font-size:10px;color:var(--mu);margin-top:8px;">🔒 Clé chiffrée sur ton serveur. <b>Exporte-la</b> et garde-la hors-ligne. L'exécution d'achats/ventes (via Jupiter) arrive à l'étape suivante.</div>
+        <div style="font-size:10px;color:var(--mu);margin-top:8px;">🔒 Clé chiffrée sur ton serveur. <b>Exporte-la</b> et garde-la hors-ligne.</div>
+
+        <!-- Achat Solana via Jupiter -->
+        <div style="border-top:1px solid var(--bd);margin-top:12px;padding-top:12px;">
+          <div style="font-size:12px;font-weight:600;margin-bottom:8px;">⚡ Acheter un token (Solana · Jupiter)</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px;">
+            <select x-model="buy.input" class="inp" style="font-size:12px;">
+              <option value="So11111111111111111111111111111111111111112">Payer en SOL</option>
+              <option value="EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v">Payer en USDC</option>
+            </select>
+            <input x-model="buy.amount" type="number" class="inp" placeholder="Montant (ex. 0.1)" style="font-size:12px;">
+          </div>
+          <input x-model="buy.output" class="inp mono" placeholder="Adresse (mint) du token à acheter" style="font-size:11px;margin-bottom:6px;">
+          <div style="display:flex;gap:6px;align-items:center;margin-bottom:8px;">
+            <span style="font-size:11px;color:var(--mu);">Slippage</span>
+            <select x-model="buy.slippage" class="inp" style="font-size:12px;width:90px;">
+              <option value="50">0,5%</option><option value="100">1%</option><option value="300">3%</option><option value="500">5%</option>
+            </select>
+          </div>
+          <div style="display:flex;gap:6px;">
+            <button @click="previewBuy()" class="btn btn-ghost btn-sm" style="flex:1;justify-content:center;" :disabled="buyLoading||!buy.output||!buy.amount">Aperçu</button>
+            <button @click="execBuy()" class="btn btn-primary btn-sm" style="flex:1;justify-content:center;" :disabled="buyLoading||!buy.output||!buy.amount">
+              <span x-show="buyLoading" class="spin"></span> Acheter
+            </button>
+          </div>
+          <div x-show="buyResult" style="font-size:11px;color:var(--mu2);margin-top:8px;white-space:pre-wrap;" x-html="buyResult"></div>
+          <div style="font-size:10px;color:var(--yw);margin-top:6px;">⚠️ Exécute une vraie transaction. Teste avec un petit montant d'abord.</div>
+        </div>
       </div>
     </template>
   </div>
@@ -3794,6 +3821,26 @@ function app() { return {
     finally{ this.cexSyncing=false; }
   },
   tradingWallet:null, twBalances:null, twLoading:false,
+  buy:{input:'So11111111111111111111111111111111111111112', output:'', amount:'', slippage:'100'},
+  buyLoading:false, buyResult:'',
+  async previewBuy(){
+    this.buyLoading=true; this.buyResult='';
+    try{
+      const r=await this.api('POST','/api/v1/trading/quote',{input_mint:this.buy.input, output_mint:this.buy.output.trim(), amount_ui:this.buy.amount, slippage_bps:Number(this.buy.slippage)});
+      this.buyResult='Aperçu : tu recevrais ~<b>'+r.out_amount_raw+'</b> unités (brut). Impact prix : '+( (Number(r.price_impact_pct)*100).toFixed(2) )+'%. Route : '+(r.route||[]).join(' → ');
+    }catch(e){ this.buyResult='⚠️ '+e.message; }
+    finally{ this.buyLoading=false; }
+  },
+  async execBuy(){
+    if(!confirm('Exécuter un ACHAT réel de '+this.buy.amount+' (slippage '+(Number(this.buy.slippage)/100)+'%) ? Cette transaction est irréversible.')) return;
+    this.buyLoading=true; this.buyResult='';
+    try{
+      const r=await this.api('POST','/api/v1/trading/swap',{input_mint:this.buy.input, output_mint:this.buy.output.trim(), amount_ui:this.buy.amount, slippage_bps:Number(this.buy.slippage)});
+      this.buyResult='✅ Achat exécuté ! <a href="'+r.explorer+'" target="_blank" style="color:var(--ac)">Voir sur Solscan</a>';
+      setTimeout(()=>this.loadTradingWallet(), 4000);
+    }catch(e){ this.buyResult='❌ '+e.message; }
+    finally{ this.buyLoading=false; }
+  },
   async loadTradingWallet(){
     try{
       const d=await this.api('GET','/api/v1/trading/wallet');
